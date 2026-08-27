@@ -10,6 +10,8 @@ make check
 
 `make test-e2e` needs [bats](https://github.com/bats-core/bats-core)
 (`brew install bats-core`) and `jq`. `make check-surface` needs `jq`.
+`make lint` needs `golangci-lint`; CI pins the version `brew install
+golangci-lint` currently gives you, so the two agree.
 
 ## Before you open a PR
 
