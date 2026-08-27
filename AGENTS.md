@@ -84,6 +84,13 @@ the weeks-app PR that adds them.
 deadline) can be tested without spending real seconds. Leave it nil in
 production.
 
+**Never build the credential store eagerly.** Reach it through
+`appctx.App.Creds()`, which opens it once on first use. Opening it probes the
+system keyring, and that probe is unbounded in the toolkit's current release —
+on a locked keychain it never returns. Building it in the root command's
+pre-run made `weeks version` and `weeks commands --json` hang on exactly the
+kind of machine an agent runs on. `e2e/contract.bats` guards this.
+
 ## Working with weeks-app
 
 In a worktree collection, weeks-app serves on the collection's

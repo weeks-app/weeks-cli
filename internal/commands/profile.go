@@ -166,7 +166,7 @@ func newProfileRemoveCmd() *cobra.Command {
 
 			// Removing the profile without removing its credential would leave
 			// a token in the keyring that nothing can name any more.
-			_ = app.Creds.Delete(name, prof.BaseURL)
+			_ = app.Creds().Delete(name, prof.BaseURL)
 
 			if err := app.Profiles.Delete(name); err != nil {
 				return fmt.Errorf("could not remove the profile: %w", err)

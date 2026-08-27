@@ -74,14 +74,14 @@ func newAuthLoginCmd() *cobra.Command {
 				return loginError(err)
 			}
 
-			if err := app.Creds.Save(app.Profile, creds); err != nil {
+			if err := app.Creds().Save(app.Profile, creds); err != nil {
 				return fmt.Errorf("could not store the credential: %w", err)
 			}
 
 			data := map[string]any{
 				"base_url":   creds.BaseURL,
 				"profile":    app.Profile,
-				"storage":    storageName(app.Creds),
+				"storage":    storageName(app.Creds()),
 				"scope":      creds.Scope,
 				"expires_at": expiryOrNil(creds),
 				"grant":      grantName(browser),
@@ -96,7 +96,7 @@ func newAuthLoginCmd() *cobra.Command {
 					output.Breadcrumb{Action: "discover", Cmd: "weeks commands --json", Description: "List every command this binary offers"},
 				),
 			}
-			if warning := app.Creds.FallbackWarning(); warning != "" {
+			if warning := app.Creds().FallbackWarning(); warning != "" {
 				opts = append(opts, output.WithNotice(warning))
 			}
 			return app.Out.OK(data, opts...)
@@ -192,7 +192,7 @@ func newAuthLogoutCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
 
-			creds, err := app.Creds.Load(app.Profile, app.BaseURL)
+			creds, err := app.Creds().Load(app.Profile, app.BaseURL)
 			if err != nil {
 				return &output.Error{
 					Code:    output.CodeAuth,
@@ -211,7 +211,7 @@ func newAuthLogoutCmd() *cobra.Command {
 				}
 			}
 
-			if err := app.Creds.Delete(app.Profile, app.BaseURL); err != nil {
+			if err := app.Creds().Delete(app.Profile, app.BaseURL); err != nil {
 				return fmt.Errorf("could not remove the credential: %w", err)
 			}
 
@@ -244,7 +244,7 @@ func newAuthStatusCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
 
-			creds, err := app.Creds.Load(app.Profile, app.BaseURL)
+			creds, err := app.Creds().Load(app.Profile, app.BaseURL)
 			if err != nil {
 				return &output.Error{
 					Code:    output.CodeAuth,
@@ -265,7 +265,7 @@ func newAuthStatusCmd() *cobra.Command {
 				"authenticated": true,
 				"base_url":      creds.BaseURL,
 				"profile":       app.Profile,
-				"storage":       storageName(app.Creds),
+				"storage":       storageName(app.Creds()),
 				"scope":         creds.Scope,
 				"expires_at":    expiryOrNil(creds),
 				"created_at":    creds.CreatedAt.Format(time.RFC3339),

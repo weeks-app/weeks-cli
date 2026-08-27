@@ -115,6 +115,18 @@ setup() {
                           | length == 2 and all(.status == "skip" and (.hint | contains("auth login")))'
 }
 
+@test "discovery never waits on the keyring" {
+  # Opening the credential store probes the system keyring, and that probe is
+  # unbounded in the toolkit's current release — on a locked keychain it does
+  # not return. These commands never look at a credential, so they must not
+  # pay for one. Deliberately run WITHOUT WEEKS_NO_KEYRING, which is the
+  # escape hatch this test exists to make unnecessary.
+  for cmd in version commands skill; do
+    run env -u WEEKS_NO_KEYRING timeout 10 "$BINARY" "$cmd"
+    [ "$status" -ne 124 ]
+  done
+}
+
 @test "the skill ships inside the binary" {
   run "$BINARY" skill
   [ "$status" -eq 0 ]

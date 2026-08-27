@@ -197,9 +197,9 @@ func checkProfile(app *appctx.App) Check {
 // checkCredentials also returns the credentials it found, so the API-access
 // check does not have to load them a second time.
 func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
-	storage := storageName(app.Creds)
+	storage := storageName(app.Creds())
 
-	creds, err := app.Creds.Load(app.Profile, app.BaseURL)
+	creds, err := app.Creds().Load(app.Profile, app.BaseURL)
 	if err != nil {
 		return Check{
 			ID: "credentials", Name: "Credentials", Status: StatusSkip,
@@ -218,7 +218,7 @@ func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
 
 	summary := &credentialsSummary{token: creds.AccessToken}
 
-	if !app.Creds.UsingKeyring() {
+	if !app.Creds().UsingKeyring() {
 		// File storage that was asked for is a decision, not a fault — a
 		// headless box or a container has no keyring to reach, and warning
 		// about it every run trains people to ignore the warnings that matter.
@@ -228,7 +228,7 @@ func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
 				Message: fmt.Sprintf("stored in a 0600 file at %s, because %s is set", config.Dir(), config.EnvNoKeyring),
 			}, summary
 		}
-		warning := app.Creds.FallbackWarning()
+		warning := app.Creds().FallbackWarning()
 		if warning == "" {
 			warning = "the system keyring is not in use; credentials are stored in a 0600 file at " + config.Dir()
 		}
@@ -296,7 +296,7 @@ func checkAPIAccess(ctx context.Context, app *appctx.App, haveCreds bool) Check 
 		}
 	}
 
-	creds, err := app.Creds.Load(app.Profile, app.BaseURL)
+	creds, err := app.Creds().Load(app.Profile, app.BaseURL)
 	if err != nil {
 		return Check{ID: "api", Name: "API access", Status: StatusSkip, Message: "no credential to test with"}
 	}

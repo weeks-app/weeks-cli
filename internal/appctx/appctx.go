@@ -8,6 +8,7 @@ package appctx
 
 import (
 	"context"
+	"sync"
 
 	bcprofile "github.com/basecamp/cli/profile"
 	"github.com/spf13/cobra"
@@ -47,8 +48,23 @@ type App struct {
 	// this is true; otherwise it says everything up front and still waits.
 	Interactive bool
 
-	Creds    *auth.Store
 	Profiles *bcprofile.Store
+
+	credsOnce sync.Once
+	creds     *auth.Store
+}
+
+// Creds opens the credential store, once, on first use.
+//
+// Opening it probes the system keyring, and that probe is unbounded in the
+// toolkit's current release: on a locked keychain it does not return. Building
+// it eagerly meant `weeks version` and `weeks commands --json` — which never
+// look at a credential — hung on a machine whose keychain was locked, which is
+// most of the machines an agent runs on. Nothing pays for the keyring until
+// something actually needs a token.
+func (a *App) Creds() *auth.Store {
+	a.credsOnce.Do(func() { a.creds = auth.NewStore() })
+	return a.creds
 }
 
 type key struct{}

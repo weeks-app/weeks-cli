@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/weeks-app/weeks-cli/internal/appctx"
-	"github.com/weeks-app/weeks-cli/internal/auth"
 	"github.com/weeks-app/weeks-cli/internal/commands"
 	"github.com/weeks-app/weeks-cli/internal/config"
 	"github.com/weeks-app/weeks-cli/internal/output"
@@ -178,7 +177,6 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 		Interactive: interactive(flags),
 		Confirm:     flags.confirm,
 		Verbose:     flags.verbose,
-		Creds:       auth.NewStore(),
 		Profiles:    profiles,
 	}, nil
 }
