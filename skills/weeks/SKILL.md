@@ -9,6 +9,11 @@ description: Plan and staff work in weeks from the command line. Use for weeks s
 built to be driven by an agent: every command answers with the same JSON
 envelope, and every answer suggests what to do next.
 
+**This binary is at the bootstrap stage.** Auth, discovery, and diagnostics
+work; the scheduling commands do not exist yet. `weeks commands --json` is
+always the truth about what this binary can do — trust it over any example in
+this document.
+
 ## Before anything else
 
 ```bash
@@ -78,6 +83,9 @@ somewhere the plan says they should not be.
 
 The contract is exact: **re-run the identical command with `--confirm`.**
 
+The command below is an illustration, not a command this binary has yet — the
+gate is what to learn, and it will look like this wherever it appears:
+
 ```bash
 weeks assign --person 42 --to-slot 17
 # {"ok": false, "code": "confirmation_required",
@@ -116,7 +124,9 @@ wider access.
 
 ## Vocabulary
 
-Say these words back to the user; they are the ones the product uses.
+These are the words the product uses; say them back to the user. Commands that
+read and write these things are not in this binary yet, but the vocabulary is
+what the domain is made of, and it is what a planner will say to you.
 
 - **Space** — the top-level container a team plans inside.
 - **Plan** — a schedule within a space: a production, an event, a period.
@@ -133,7 +143,9 @@ Say these words back to the user; they are the ones the product uses.
 
 ## Working habits
 
-- Run `weeks commands --json` first; do not guess at command names.
+- Run `weeks commands --json` first; do not guess at command names. If a
+  command you expected is missing, it has not shipped — say so rather than
+  improvising around it.
 - Follow the breadcrumbs. They encode what the CLI expects you to need next.
 - Report the `summary` rather than re-describing the JSON.
 - When a command fails, read `hint` before trying anything else. It names the
