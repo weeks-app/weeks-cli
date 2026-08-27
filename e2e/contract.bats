@@ -99,10 +99,20 @@ setup() {
   echo "$output" | jq -e '.data.checks | any(.id == "connectivity" and .status == "fail")'
 }
 
-@test "every doctor check that fails or is skipped says what to do" {
+@test "every doctor check that fails says what to do about it" {
   run "$BINARY" doctor --json --base-url "$DEAD_URL"
-  echo "$output" | jq -e '.data.checks | map(select(.status == "fail" or .status == "skip"))
+  echo "$output" | jq -e '.data.checks | map(select(.status == "fail"))
                           | all(.hint | length > 0)'
+}
+
+@test "a skip the caller can act on says how" {
+  # Not every skip is actionable — "Claude Code is not installed" has nothing
+  # to suggest. Being unauthenticated does: it is the most common reason a
+  # command surprises someone, and doctor is where they look.
+  run "$BINARY" doctor --json --base-url "$DEAD_URL"
+  echo "$output" | jq -e '.data.checks
+                          | map(select(.id == "credentials" or .id == "api"))
+                          | length == 2 and all(.status == "skip" and (.hint | contains("auth login")))'
 }
 
 @test "the skill ships inside the binary" {

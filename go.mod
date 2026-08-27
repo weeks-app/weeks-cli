@@ -1,6 +1,6 @@
 module github.com/weeks-app/weeks-cli
 
-go 1.27.0
+go 1.26
 
 require (
 	github.com/basecamp/cli v0.2.1

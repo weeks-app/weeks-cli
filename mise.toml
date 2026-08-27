@@ -1,4 +1,8 @@
 # Toolchain for weeks-cli. The collection root mise.toml supplies the
 # environment (.env.collection); this file supplies the tools.
+#
+# go.mod targets 1.26, the toolkit's floor and the newest language version
+# golangci-lint v2.9.0 can load a config for. Building with a newer toolchain
+# is fine; targeting one is not.
 [tools]
 go = "1.27"

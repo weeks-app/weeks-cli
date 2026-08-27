@@ -162,15 +162,25 @@ jobs:
           make build
           scripts/check-cli-surface.sh ./bin/weeks /tmp/current-surface.txt
 
+      # `main` has no binary to snapshot until the first PR lands, and a repo
+      # whose first PR cannot pass its own gate is a gate nobody trusts.
       - name: Build and snapshot the baseline surface
+        id: baseline
         run: |
           SCRIPT_DIR="$(pwd)/scripts"
           git worktree add /tmp/baseline-tree origin/main
+          if [ ! -f /tmp/baseline-tree/Makefile ]; then
+            echo "main carries no CLI yet — nothing to compare against"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           cd /tmp/baseline-tree
           make build
           "$SCRIPT_DIR/check-cli-surface.sh" ./bin/weeks /tmp/baseline-surface.txt
+          echo "exists=true" >> "$GITHUB_OUTPUT"
 
       - name: Compare surfaces
+        if: steps.baseline.outputs.exists == 'true'
         run: scripts/check-cli-surface-diff.sh /tmp/baseline-surface.txt /tmp/current-surface.txt
 
       - name: Clean up the worktree
