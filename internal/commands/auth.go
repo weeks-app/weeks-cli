@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"time"
@@ -116,21 +117,24 @@ func loginViaDevice(ctx context.Context, cmd *cobra.Command, app *appctx.App, cl
 	}
 
 	// The prompt goes to stderr so that stdout stays a clean envelope even
-	// while a human is being talked to.
+	// while a human is being talked to. Every write here is discarded on
+	// error deliberately: it is a progress note, there is nowhere better to
+	// report a failed write to stderr, and losing one must not fail a login
+	// that is otherwise going fine.
 	w := cmd.ErrOrStderr()
-	fmt.Fprintf(w, "\n  Open %s\n", verificationTarget(da))
-	fmt.Fprintf(w, "  Enter the code: %s\n\n", da.UserCode)
+	say(w, "\n  Open %s\n", verificationTarget(da))
+	say(w, "  Enter the code: %s\n\n", da.UserCode)
 	if da.VerificationURIComplete != "" && app.Interactive {
 		// Opening the browser is a convenience, never the instruction: the URL
 		// and code above are what the user actually needs, and this machine
 		// may have no desktop at all.
 		_ = auth.OpenBrowser(da.VerificationURIComplete)
 	}
-	fmt.Fprintf(w, "  Waiting for approval (the code expires in %s)…\n", time.Duration(da.ExpiresIn)*time.Second)
+	say(w, "  Waiting for approval (the code expires in %s)…\n", time.Duration(da.ExpiresIn)*time.Second)
 
 	return client.PollDeviceToken(ctx, da, func(next time.Duration) {
 		if app.Verbose {
-			fmt.Fprintf(w, "  The server asked for a slower poll; now every %s.\n", next)
+			say(w, "  The server asked for a slower poll; now every %s.\n", next)
 		}
 	})
 }
@@ -139,7 +143,7 @@ func loginViaDevice(ctx context.Context, cmd *cobra.Command, app *appctx.App, cl
 func loginViaBrowser(ctx context.Context, cmd *cobra.Command, app *appctx.App, client *auth.Client, scope string) (*auth.Credentials, error) {
 	w := cmd.ErrOrStderr()
 	return auth.BrowserLogin(ctx, client, scope, func(url string) {
-		fmt.Fprintf(w, "\n  Opening %s\n\n", url)
+		say(w, "\n  Opening %s\n\n", url)
 		if app.Interactive {
 			_ = auth.OpenBrowser(url)
 		}
@@ -160,7 +164,7 @@ func verificationTarget(da *auth.DeviceAuthorization) string {
 func loginError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
-		return &output.Error{Code: output.CodeUsage, Message: "login was cancelled"}
+		return &output.Error{Code: output.CodeUsage, Message: "login was canceled"}
 	case errors.Is(err, auth.ErrDeviceDenied):
 		return &output.Error{
 			Code:    output.CodeForbidden,
@@ -275,6 +279,12 @@ func newAuthStatusCmd() *cobra.Command {
 			)
 		},
 	}
+}
+
+// say writes a progress note for a watching human. The error is dropped on
+// purpose — see loginViaDevice.
+func say(w io.Writer, format string, args ...any) {
+	_, _ = fmt.Fprintf(w, format, args...)
 }
 
 // storageName names where the credential actually lives, which is the first
