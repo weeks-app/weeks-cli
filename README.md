@@ -127,6 +127,10 @@ weeks --profile beta doctor --json
 | `WEEKS_CONFIG_DIR` | Where config and file-backed credentials live |
 | `WEEKS_NO_KEYRING` | Force file-backed credential storage |
 
+Commands that need no credential — `version`, `commands`, `skill`, `--help` —
+never open the credential store, so a locked or absent keyring cannot stall
+discovery.
+
 Inside a weeks worktree collection, `WEEKS_BASE_URL` should point at the
 collection's own `WEEKS_APP_PORT` — see `AGENTS.md`.
 
