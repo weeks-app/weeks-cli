@@ -219,10 +219,23 @@ func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
 	summary := &credentialsSummary{token: creds.AccessToken}
 
 	if !app.Creds.UsingKeyring() {
+		// File storage that was asked for is a decision, not a fault — a
+		// headless box or a container has no keyring to reach, and warning
+		// about it every run trains people to ignore the warnings that matter.
+		if os.Getenv(config.EnvNoKeyring) != "" {
+			return Check{
+				ID: "credentials", Name: "Credentials", Status: StatusPass,
+				Message: fmt.Sprintf("stored in a 0600 file at %s, because %s is set", config.Dir(), config.EnvNoKeyring),
+			}, summary
+		}
+		warning := app.Creds.FallbackWarning()
+		if warning == "" {
+			warning = "the system keyring is not in use; credentials are stored in a 0600 file at " + config.Dir()
+		}
 		return Check{
 			ID: "credentials", Name: "Credentials", Status: StatusWarn,
-			Message: app.Creds.FallbackWarning(),
-			Hint:    "Unlock or install a system keyring, or accept file storage deliberately.",
+			Message: warning,
+			Hint:    "Unlock or install a system keyring, or set " + config.EnvNoKeyring + " to choose file storage deliberately.",
 		}, summary
 	}
 

@@ -23,7 +23,7 @@ type deviceServer struct {
 func (d *deviceServer) start() *httptest.Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/oauth/authorize/device", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/oauth/authorize_device", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			d.t.Fatalf("device request was not a form: %v", err)
 		}

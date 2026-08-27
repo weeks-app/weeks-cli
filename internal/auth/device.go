@@ -13,8 +13,10 @@ import (
 )
 
 // Device-flow endpoints, as mounted by doorkeeper-device_authorization_grant.
+// The device authorization path is the gem's default rather than a weeks
+// choice: matching it means weeks-app needs no route customization.
 const (
-	deviceAuthorizePath = "/oauth/authorize/device"
+	deviceAuthorizePath = "/oauth/authorize_device"
 	tokenPath           = "/oauth/token"
 	authorizePath       = "/oauth/authorize"
 	revokePath          = "/oauth/revoke"
