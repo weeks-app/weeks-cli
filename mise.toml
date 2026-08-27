@@ -1,0 +1,4 @@
+# Toolchain for weeks-cli. The collection root mise.toml supplies the
+# environment (.env.collection); this file supplies the tools.
+[tools]
+go = "1.27"
