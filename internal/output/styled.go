@@ -68,8 +68,13 @@ func isTerminal(w io.Writer) bool {
 // Order is deliberate and matches how the answer is read: what happened, then
 // the detail, then what to do next.
 func renderStyled(w io.Writer, resp *Response, style *Style) error {
+	// A failure prints a red ✗ and its code; a success printed a bold line and
+	// nothing else, so the two outcomes of the same command did not look like
+	// outcomes of the same command. The tick is the envelope's `ok` made
+	// visible, which is the one thing a person scanning the output is after.
 	if resp.Summary != "" {
-		if _, err := fmt.Fprintf(w, "%s%s%s\n", style.Bold, resp.Summary, style.Reset); err != nil {
+		if _, err := fmt.Fprintf(w, "%s✓%s %s%s%s\n",
+			style.Green, style.Reset, style.Bold, resp.Summary, style.Reset); err != nil {
 			return err
 		}
 	}
