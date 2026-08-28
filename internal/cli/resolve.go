@@ -25,6 +25,10 @@ func resolveFormat(flags *rootFlags) output.Format {
 		return output.FormatMarkdown
 	case flags.json || flags.agent:
 		return output.FormatJSON
+	case flags.styled:
+		// Below --json on purpose: asking for both is a contradiction, and the
+		// machine-readable answer is the safer one to honor.
+		return output.FormatStyled
 	default:
 		return output.FormatAuto
 	}
@@ -55,6 +59,10 @@ func resolveBaseURL(flagValue string, prof *bcprofile.Profile) string {
 func interactive(flags *rootFlags) bool {
 	if flags.json || flags.agent || flags.quiet || flags.idsOnly || flags.count || flags.markdown {
 		return false
+	}
+	// --styled says a person is reading, even where TTY detection cannot tell.
+	if flags.styled {
+		return true
 	}
 	fi, err := os.Stdout.Stat()
 	if err != nil {

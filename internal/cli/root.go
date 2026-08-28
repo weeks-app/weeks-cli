@@ -28,6 +28,7 @@ const DefaultClientID = ""
 
 type rootFlags struct {
 	json     bool
+	styled   bool
 	quiet    bool
 	agent    bool
 	markdown bool
@@ -102,6 +103,7 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 
 	pf := root.PersistentFlags()
 	pf.BoolVar(&flags.json, "json", false, "Emit the JSON envelope even on a terminal")
+	pf.BoolVar(&flags.styled, "styled", false, "Render for a person even when output is not a terminal")
 	pf.BoolVar(&flags.quiet, "quiet", false, "Emit only the data, without the envelope, for piping")
 	pf.BoolVar(&flags.agent, "agent", false, "Answer in the shape an agent reads: JSON, and structured help")
 	pf.BoolVar(&flags.markdown, "markdown", false, "Render output as Markdown")
