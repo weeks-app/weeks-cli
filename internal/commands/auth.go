@@ -2,6 +2,7 @@
 package commands
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -124,12 +125,28 @@ func loginViaDevice(ctx context.Context, cmd *cobra.Command, app *appctx.App, cl
 	w := cmd.ErrOrStderr()
 	say(w, "\n  Open %s\n", verificationTarget(da))
 	say(w, "  Enter the code: %s\n\n", da.UserCode)
+
+	// Opening a browser is offered, not done.
+	//
+	// This grant exists precisely because the browser may not be here: the
+	// point of a device code is that it can be approved from a phone, or from
+	// a desktop while this runs over SSH. Launching one on the host that ran
+	// the command presumes the opposite, and a window stealing focus in the
+	// middle of someone's terminal is a poor way to make that assumption.
+	//
+	// The prompt does not block. Polling has to start now regardless — the
+	// code expires — and approval may well arrive from the other device before
+	// anyone touches this keyboard.
 	if da.VerificationURIComplete != "" && app.Interactive {
-		// Opening the browser is a convenience, never the instruction: the URL
-		// and code above are what the user actually needs, and this machine
-		// may have no desktop at all.
-		_ = auth.OpenBrowser(da.VerificationURIComplete)
+		say(w, "  Press Enter to open it here, or approve on another device.\n")
+		go func() {
+			if _, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n'); err != nil {
+				return
+			}
+			_ = auth.OpenBrowser(da.VerificationURIComplete)
+		}()
 	}
+
 	say(w, "  Waiting for approval (the code expires in %s)…\n", time.Duration(da.ExpiresIn)*time.Second)
 
 	return client.PollDeviceToken(ctx, da, func(next time.Duration) {

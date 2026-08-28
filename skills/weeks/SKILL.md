@@ -119,7 +119,10 @@ weeks auth status
 
 The device flow is the default because it is the one that works where agents
 run: it prints a short code, you approve it in any browser on any machine, and
-the CLI picks the token up. Nothing needs to redirect back to this host.
+the CLI picks the token up. Nothing needs to redirect back to this host, and
+nothing opens a browser on its own — pressing Enter offers to open one here,
+and ignoring that prompt is a normal way to finish, because the approval
+usually happens somewhere else.
 
 ## Profiles are the team boundary
 
