@@ -27,6 +27,17 @@ binary's own command tree, so it is always exactly what this binary can do.
 For one command, `weeks <command> --help --agent` returns the same structured
 entry.
 
+## Two shapes, and which one you get
+
+`weeks` answers a person and an agent differently. On a terminal it prints a
+readable summary; anywhere else — a pipe, a subprocess, a capture — it prints
+the JSON envelope. **You will almost always get the envelope**, because an
+agent is not a terminal. Pass `--json` to be certain of it.
+
+The two are projections of the same answer, so they never disagree about what
+happened. Everything below describes the envelope, which is the one to program
+against.
+
 ## The envelope
 
 Every command emits this on stdout when stdout is not a terminal, or whenever

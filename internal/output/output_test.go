@@ -3,6 +3,7 @@ package output_test
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/weeks-app/weeks-cli/internal/output"
@@ -132,5 +133,83 @@ func TestSharedExitCodesAreUnchanged(t *testing.T) {
 func TestExitCodeOfNilIsSuccess(t *testing.T) {
 	if got := output.ExitCode(nil); got != output.ExitOK {
 		t.Errorf("ExitCode(nil) = %d, want %d", got, output.ExitOK)
+	}
+}
+
+// Styled output is what a person sees. It is a projection of the same envelope
+// an agent receives, so these tests are as much about the two not diverging as
+// about how it looks.
+
+func TestStyledOutputIsNotJSON(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+
+	if err := w.OK(map[string]any{"grant": "device_code"},
+		output.WithSummary("Signed in to https://acme.weeks.io."),
+		output.WithBreadcrumbs(output.Breadcrumb{
+			Action: "verify", Cmd: "weeks auth status", Description: "Confirm the credential",
+		}),
+	); err != nil {
+		t.Fatalf("OK: %v", err)
+	}
+
+	got := buf.String()
+	if strings.Contains(got, `"ok"`) {
+		t.Errorf("styled output leaked the envelope:\n%s", got)
+	}
+	for _, want := range []string{"Signed in to https://acme.weeks.io.", "grant", "device_code", "weeks auth status"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("styled output is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestStyledErrorShowsCodeAndHint(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+
+	if err := w.Err(output.ErrConfirmationRequired("Dana already works that slot")); err != nil {
+		t.Fatalf("Err: %v", err)
+	}
+
+	got := buf.String()
+	// The code is what someone quotes when they ask about it, and the hint is
+	// what they do about it; neither may be dropped just because it is pretty.
+	for _, want := range []string{"Dana already works that slot", output.CodeConfirmationRequired, "--confirm"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("styled error is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestStyledOutputHasNoEscapesWhenNotATerminal(t *testing.T) {
+	// A buffer is not a terminal, so a redirected styled run must stay plain:
+	// escape codes in a file someone is reading later are noise.
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+
+	if err := w.OK(map[string]any{"id": 1}, output.WithSummary("One thing.")); err != nil {
+		t.Fatalf("OK: %v", err)
+	}
+	if strings.Contains(buf.String(), "\x1b[") {
+		t.Errorf("styled output emitted ANSI escapes to a non-terminal:\n%q", buf.String())
+	}
+}
+
+func TestJSONIsUnchangedByStyledSupport(t *testing.T) {
+	// The whole point of rendering styled output as a projection is that the
+	// agent-facing envelope is untouched.
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatJSON, Writer: &buf})
+
+	if err := w.OK(map[string]any{"id": 1}, output.WithSummary("One thing.")); err != nil {
+		t.Fatalf("OK: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("JSON mode stopped emitting JSON: %v", err)
+	}
+	if got["ok"] != true || got["summary"] != "One thing." {
+		t.Errorf("envelope changed shape: %v", got)
 	}
 }

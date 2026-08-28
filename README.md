@@ -37,6 +37,11 @@ with PKCE instead.
 
 ## The contract
 
+On a terminal, `weeks` prints a readable summary with the follow-up commands
+under it. Everywhere else — a pipe, a script, an agent — it prints the JSON
+envelope. Both are projections of the same answer, so they cannot disagree
+about what happened.
+
 Every command emits this on stdout when stdout is not a terminal, or whenever
 `--json` is passed:
 

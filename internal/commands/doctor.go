@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -412,4 +413,44 @@ func dedupeBreadcrumbs(in []output.Breadcrumb) []output.Breadcrumb {
 		out = append(out, c)
 	}
 	return out
+}
+
+// RenderStyled prints the checks as a checklist rather than as an object.
+//
+// A person running `weeks doctor` is scanning for the one line that is not a
+// tick; marks down the left margin are what makes that possible, and the
+// generic renderer's key-and-value treatment would bury it.
+func (r *DoctorResult) RenderStyled(w io.Writer, style *output.Style) error {
+	marks := map[string]struct {
+		glyph string
+		color string
+	}{
+		StatusPass: {"✓", style.Green},
+		StatusFail: {"✗", style.Red},
+		StatusWarn: {"!", style.Yellow},
+		StatusSkip: {"–", style.Dim},
+	}
+
+	width := 0
+	for _, check := range r.Checks {
+		if len(check.Name) > width {
+			width = len(check.Name)
+		}
+	}
+
+	for _, check := range r.Checks {
+		mark := marks[check.Status]
+		if _, err := fmt.Fprintf(w, "  %s%s%s  %-*s  %s\n",
+			mark.color, mark.glyph, style.Reset, width, check.Name, check.Message); err != nil {
+			return err
+		}
+		// A hint is only worth the line when something needs doing about it.
+		if check.Hint != "" && check.Status != StatusPass {
+			if _, err := fmt.Fprintf(w, "     %s→ %s%s\n",
+				style.Dim, check.Hint, style.Reset); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

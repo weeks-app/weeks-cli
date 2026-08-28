@@ -9,6 +9,8 @@ package output
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/basecamp/cli/output"
 )
@@ -20,10 +22,72 @@ type (
 	Breadcrumb     = output.Breadcrumb
 	Format         = output.Format
 	Options        = output.Options
-	Writer         = output.Writer
 	Error          = output.Error
 	ResponseOption = output.ResponseOption
 )
+
+// Writer answers a command.
+//
+// It wraps the toolkit's writer rather than aliasing it because weeks has one
+// format the toolkit does not implement: FormatStyled, the human one. The
+// toolkit's own styled case falls through to JSON, on the stated understanding
+// that each app supplies its rendering. This is that.
+//
+// Everything else is delegated unchanged, so the envelope an agent reads comes
+// from the toolkit in every mode where an agent is reading.
+type Writer struct {
+	inner  *output.Writer
+	opts   Options
+	target io.Writer
+}
+
+// New creates a writer.
+func New(opts Options) *Writer {
+	if opts.Writer == nil {
+		opts.Writer = os.Stdout
+	}
+	return &Writer{inner: output.New(opts), opts: opts, target: opts.Writer}
+}
+
+// DefaultOptions returns options for standard output.
+func DefaultOptions() Options { return output.DefaultOptions() }
+
+// styled reports whether this invocation should be rendered for a person:
+// either asked for outright, or auto-detected because a terminal is attached.
+func (w *Writer) styled() bool {
+	if w.opts.Format == FormatStyled {
+		return true
+	}
+	return w.opts.Format == FormatAuto && isTerminal(w.target)
+}
+
+// OK writes a success response.
+func (w *Writer) OK(data any, opts ...ResponseOption) error {
+	if !w.styled() {
+		return w.inner.OK(data, opts...)
+	}
+	resp := &Response{OK: true, Data: data}
+	for _, opt := range opts {
+		opt(resp)
+	}
+	return renderStyled(w.target, resp, NewStyle(w.target))
+}
+
+// Err writes a failure.
+func (w *Writer) Err(err error, opts ...ErrorResponseOption) error {
+	if !w.styled() {
+		return w.inner.Err(err, opts...)
+	}
+	structured := AsError(err)
+	resp := &ErrorResponse{OK: false, Error: structured.Message, Code: structured.Code, Hint: structured.Hint}
+	for _, opt := range opts {
+		opt(resp)
+	}
+	return renderErrorStyled(w.target, resp, NewStyle(w.target))
+}
+
+// ErrorResponseOption modifies an error response.
+type ErrorResponseOption = output.ErrorResponseOption
 
 // Format modes.
 const (
@@ -60,8 +124,10 @@ const (
 
 // Constructors and response options.
 var (
-	New                = output.New
-	DefaultOptions     = output.DefaultOptions
+	// NormalizeData turns arbitrary Go values into the JSON-ish shapes the
+	// renderers walk, so styled output and JSON output describe the same tree.
+	NormalizeData = output.NormalizeData
+
 	WithSummary        = output.WithSummary
 	WithNotice         = output.WithNotice
 	WithBreadcrumbs    = output.WithBreadcrumbs
