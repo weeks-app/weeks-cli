@@ -1,0 +1,6 @@
+/bin/
+coverage.out
+coverage.html
+*.prof
+go.mod.tidycheck
+go.sum.tidycheck

@@ -1,0 +1,70 @@
+package cli
+
+import (
+	"encoding/json"
+	"testing"
+
+	bcprofile "github.com/basecamp/cli/profile"
+
+	"github.com/weeks-app/weeks-cli/internal/config"
+)
+
+func TestBuildAppUsesProfileClientID(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+
+	store := bcprofile.NewStore(config.ProfilesPath())
+	clientID, err := json.Marshal("local-client")
+	if err != nil {
+		t.Fatal(err)
+	}
+	createErr := store.Create(&bcprofile.Profile{
+		Name:    "local",
+		BaseURL: "http://localhost:3000",
+		Extra:   map[string]json.RawMessage{"client_id": clientID},
+	})
+	if createErr != nil {
+		t.Fatal(createErr)
+	}
+
+	app, err := buildApp(&rootFlags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.ClientID != "local-client" {
+		t.Fatalf("ClientID = %q, want local-client", app.ClientID)
+	}
+}
+
+func TestBuildAppEnvClientIDOverridesProfileClientID(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "env-client")
+	t.Setenv(config.EnvProfile, "")
+
+	store := bcprofile.NewStore(config.ProfilesPath())
+	clientID, err := json.Marshal("local-client")
+	if err != nil {
+		t.Fatal(err)
+	}
+	createErr := store.Create(&bcprofile.Profile{
+		Name:    "local",
+		BaseURL: "http://localhost:3000",
+		Extra:   map[string]json.RawMessage{"client_id": clientID},
+	})
+	if createErr != nil {
+		t.Fatal(createErr)
+	}
+
+	app, err := buildApp(&rootFlags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.ClientID != "env-client" {
+		t.Fatalf("ClientID = %q, want env-client", app.ClientID)
+	}
+}

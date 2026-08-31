@@ -1,0 +1,192 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# weeks-cli depends only on public modules, so none of these jobs need the
+# private-module token dance the seed template carries.
+env:
+  WEEKS_NO_KEYRING: "1"
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Check module tidiness
+        run: make tidy-check
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Build binary
+        run: make build
+
+      # The envelope and the exit codes are the contract; a build that
+      # produces neither is not a passing build.
+      - name: Smoke test the agent contract
+        run: |
+          ./bin/weeks --version
+          ./bin/weeks commands --json | jq -e '.ok == true and (.data | length) > 0'
+          ./bin/weeks doctor --json --base-url http://127.0.0.1:1 > /dev/null || test $? -eq 7
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      # Pinned to what a contributor gets from `brew install golangci-lint`
+      # today. A CI linter older than the local one turns "passes locally,
+      # fails in CI" into a recurring surprise, and its findings differ by
+      # version, not only its Go support.
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: v2.13.1
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Run govulncheck
+        # @latest is intentional: pinning delays scanning improvements and new
+        # Go version support for no meaningful reproducibility gain.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  race-check:
+    name: Race Detection
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Run tests with the race detector
+        run: go test -race ./...
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Cache BATS
+        id: cache-bats
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: /usr/local/libexec/bats-core
+          key: bats-1.11.0
+
+      - name: Install BATS
+        if: steps.cache-bats.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v1.11.0 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+
+      - name: Run BATS integration tests
+        run: make test-e2e
+
+  cli-surface:
+    name: CLI Surface Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # A removed flag or subcommand breaks a plan an agent already made, so a
+    # PR that narrows the surface has to say so out loud.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Build and snapshot the PR surface
+        run: |
+          make build
+          scripts/check-cli-surface.sh ./bin/weeks /tmp/current-surface.txt
+
+      # `main` has no binary to snapshot until the first PR lands, and a repo
+      # whose first PR cannot pass its own gate is a gate nobody trusts.
+      - name: Build and snapshot the baseline surface
+        id: baseline
+        run: |
+          SCRIPT_DIR="$(pwd)/scripts"
+          git worktree add /tmp/baseline-tree origin/main
+          if [ ! -f /tmp/baseline-tree/Makefile ]; then
+            echo "main carries no CLI yet — nothing to compare against"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cd /tmp/baseline-tree
+          make build
+          "$SCRIPT_DIR/check-cli-surface.sh" ./bin/weeks /tmp/baseline-surface.txt
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Compare surfaces
+        if: steps.baseline.outputs.exists == 'true'
+        run: scripts/check-cli-surface-diff.sh /tmp/baseline-surface.txt /tmp/current-surface.txt
+
+      - name: Clean up the worktree
+        if: always()
+        run: git worktree remove /tmp/baseline-tree --force 2>/dev/null || true
