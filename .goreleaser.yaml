@@ -68,7 +68,7 @@ release:
   extra_files:
     - glob: ./install.sh
 
-homebrew_casks:
+brews:
   - name: weeks
     ids:
       - weeks
@@ -76,12 +76,14 @@ homebrew_casks:
       owner: weeks-app
       name: homebrew-tap
       token: "{{ .Env.WEEKS_HOMEBREW_TAP_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: https://weeks.app
     description: Command-line and agent interface to Weeks
     license: MIT
-    binaries:
-      - weeks
     commit_author:
       name: weeks-release-bot
       email: releases@weeks.app
+    install: |
+      bin.install "weeks"
+    test: |
+      system "#{bin}/weeks", "version"
