@@ -17,7 +17,9 @@ next, and the agent skill that teaches the CLI ships inside the binary.
 With Homebrew:
 
 ```bash
-brew install --cask weeks-app/tap/weeks
+brew tap weeks-app/tap
+brew trust weeks-app/tap
+brew install --cask weeks
 ```
 
 With the installer:
