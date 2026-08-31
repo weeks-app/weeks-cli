@@ -19,7 +19,7 @@ With Homebrew:
 ```bash
 brew tap weeks-app/tap
 brew trust weeks-app/tap
-brew install --cask weeks
+brew install weeks
 ```
 
 With the installer:
