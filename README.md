@@ -14,11 +14,27 @@ next, and the agent skill that teaches the CLI ships inside the binary.
 
 ## Install
 
+With Homebrew:
+
 ```bash
-go build -o bin/weeks ./cmd/weeks
+brew install --cask weeks-app/tap/weeks
 ```
 
-Release binaries follow once the release pipeline lands.
+With the installer:
+
+```bash
+curl -fsSL https://about.weeks.app/install.sh | sh
+```
+
+The installer verifies the release checksum before placing `weeks` in
+`~/.local/bin` by default. Set `WEEKS_INSTALL_DIR` or `WEEKS_INSTALL_VERSION`
+to choose another directory or release.
+
+From source:
+
+```bash
+go install github.com/weeks-app/weeks-cli/cmd/weeks@latest
+```
 
 ## Getting started
 
@@ -150,6 +166,5 @@ make test-e2e   # the agent contract, through the built binary (needs bats)
 
 ## License
 
-The 37signals toolkit this is built on is MIT
-([basecamp/cli](https://github.com/basecamp/cli)). This repository is private
-to weeks.
+MIT. The 37signals toolkit this is built on is also MIT
+([basecamp/cli](https://github.com/basecamp/cli)).
