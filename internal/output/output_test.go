@@ -168,10 +168,14 @@ func TestSuccessAndFailureBothCarryAMarker(t *testing.T) {
 	// The two outcomes of one command have to look like outcomes of one
 	// command. A bold line against a red ✗ did not.
 	var ok, bad bytes.Buffer
-	output.New(output.Options{Format: output.FormatStyled, Writer: &ok}).
-		OK(nil, output.WithSummary("Signed in."))
-	output.New(output.Options{Format: output.FormatStyled, Writer: &bad}).
-		Err(output.ErrAuth("not signed in"))
+	if err := output.New(output.Options{Format: output.FormatStyled, Writer: &ok}).
+		OK(nil, output.WithSummary("Signed in.")); err != nil {
+		t.Fatalf("OK: %v", err)
+	}
+	if err := output.New(output.Options{Format: output.FormatStyled, Writer: &bad}).
+		Err(output.ErrAuth("not signed in")); err != nil {
+		t.Fatalf("Err: %v", err)
+	}
 
 	if !strings.Contains(ok.String(), "✓") {
 		t.Errorf("a success carries no marker:\n%s", ok.String())

@@ -3,6 +3,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -162,6 +163,9 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 	}
 
 	clientID := os.Getenv(config.EnvClientID)
+	if clientID == "" && prof != nil {
+		clientID = profileClientID(prof)
+	}
 	if clientID == "" {
 		clientID = DefaultClientID
 	}
@@ -181,4 +185,21 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 		Verbose:     flags.verbose,
 		Profiles:    profiles,
 	}, nil
+}
+
+func profileClientID(prof *bcprofile.Profile) string {
+	if prof.Extra == nil {
+		return ""
+	}
+
+	raw, ok := prof.Extra["client_id"]
+	if !ok {
+		return ""
+	}
+
+	var clientID string
+	if err := json.Unmarshal(raw, &clientID); err != nil {
+		return ""
+	}
+	return clientID
 }

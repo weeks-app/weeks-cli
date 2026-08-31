@@ -18,6 +18,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/basecamp/cli/credstore"
@@ -107,6 +108,11 @@ func (s *Store) Load(profileName, baseURL string) (*Credentials, error) {
 		return nil, fmt.Errorf("stored credentials are unreadable: %w", err)
 	}
 	return &creds, nil
+}
+
+// IsNotFound reports whether err means there is no stored credential.
+func IsNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "credentials not found")
 }
 
 // Save writes the credentials for a profile.

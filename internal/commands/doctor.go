@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/weeks-app/weeks-cli/internal/appctx"
+	"github.com/weeks-app/weeks-cli/internal/auth"
 	"github.com/weeks-app/weeks-cli/internal/config"
 	"github.com/weeks-app/weeks-cli/internal/harness"
 	"github.com/weeks-app/weeks-cli/internal/output"
@@ -202,6 +203,14 @@ func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
 
 	creds, err := app.Creds().Load(app.Profile, app.BaseURL)
 	if err != nil {
+		if !auth.IsNotFound(err) {
+			return Check{
+				ID: "credentials", Name: "Credentials", Status: StatusFail,
+				Message: fmt.Sprintf("could not read the stored %s credential: %v", storage, err),
+				Hint:    "Run `weeks auth logout`, then `weeks auth login`.",
+			}, nil
+		}
+
 		return Check{
 			ID: "credentials", Name: "Credentials", Status: StatusSkip,
 			Message: fmt.Sprintf("not signed in to %s%s", app.BaseURL, profileSuffix(app.Profile)),

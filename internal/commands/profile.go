@@ -191,8 +191,16 @@ func newProfileDefaultCmd() *cobra.Command {
 			app := appctx.From(cmd)
 			name := args[0]
 
-			if err := app.Profiles.SetDefault(name); err != nil {
+			profiles, _, err := app.Profiles.List()
+			if err != nil {
+				return fmt.Errorf("could not read profiles: %w", err)
+			}
+			if _, ok := profiles[name]; !ok {
 				return output.ErrNotFound("profile", name)
+			}
+
+			if err := app.Profiles.SetDefault(name); err != nil {
+				return fmt.Errorf("could not choose default profile: %w", err)
 			}
 
 			return app.Out.OK(map[string]any{"id": name, "name": name, "is_default": true},
