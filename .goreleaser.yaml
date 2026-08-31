@@ -1,0 +1,87 @@
+version: 2
+
+project_name: weeks
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: weeks
+    main: ./cmd/weeks
+    binary: weeks
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/weeks-app/weeks-cli/internal/version.Version={{ .Version }}
+      - -X github.com/weeks-app/weeks-cli/internal/version.Commit={{ .Commit }}
+      - -X github.com/weeks-app/weeks-cli/internal/version.Date={{ .Date }}
+
+archives:
+  - id: weeks
+    ids:
+      - weeks
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: weeks-app
+    name: weeks-cli
+  draft: false
+  prerelease: auto
+  extra_files:
+    - glob: ./install.sh
+
+homebrew_casks:
+  - name: weeks
+    ids:
+      - weeks
+    repository:
+      owner: weeks-app
+      name: homebrew-tap
+      token: "{{ .Env.WEEKS_HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://weeks.app
+    description: Command-line and agent interface to Weeks
+    license: MIT
+    binaries:
+      - weeks
+    commit_author:
+      name: weeks-release-bot
+      email: releases@weeks.app
