@@ -17,8 +17,10 @@ const DefaultBaseURL = "https://weeks.app"
 // the hosted weeks installation.
 const DefaultHostedClientID = "weeks-cli"
 
-// IsHostedBaseURL reports whether baseURL points at the canonical hosted weeks
-// app. Only that installation can rely on the CLI's built-in OAuth client id.
+// IsHostedBaseURL reports whether baseURL points at the hosted weeks app. It
+// accepts /account links too because NormalizeBaseURL folds them to the
+// canonical installation root. Only that installation can rely on the CLI's
+// built-in OAuth client id.
 func IsHostedBaseURL(baseURL string) bool {
 	return NormalizeBaseURL(baseURL) == DefaultBaseURL
 }
