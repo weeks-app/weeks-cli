@@ -84,3 +84,59 @@ func TestSetupProtectsExistingSkillWithoutForce(t *testing.T) {
 		t.Fatalf("skill was overwritten: %q", got)
 	}
 }
+
+func TestSetupKeepsExistingProfileAndMakesItDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+
+	profiles := bcprofile.NewStore(config.ProfilesPath())
+	if err := profiles.Create(&bcprofile.Profile{Name: "local", BaseURL: "https://existing.example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewSetupCmd()
+	cmd.SetContext(appctx.With(context.Background(), &appctx.App{
+		Out:      output.New(output.Options{Format: output.FormatJSON, Writer: &bytes.Buffer{}}),
+		BaseURL:  "https://new.example",
+		Profiles: profiles,
+	}))
+	cmd.SetArgs([]string{"--profile", "local", "--skip-skill"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	gotProfiles, defaultName, err := profiles.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaultName != "local" {
+		t.Fatalf("default = %q", defaultName)
+	}
+	if gotProfiles["local"].BaseURL != "https://existing.example" {
+		t.Fatalf("existing profile was overwritten: %#v", gotProfiles["local"])
+	}
+}
+
+func TestSetupSkipProfileStillNamesLoginProfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+
+	var out bytes.Buffer
+	cmd := NewSetupCmd()
+	cmd.SetContext(appctx.With(context.Background(), &appctx.App{
+		Out:      output.New(output.Options{Format: output.FormatJSON, Writer: &out}),
+		BaseURL:  config.DefaultBaseURL,
+		Profiles: bcprofile.NewStore(config.ProfilesPath()),
+	}))
+	cmd.SetArgs([]string{"--profile", "local", "--skip-profile", "--skip-skill"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "weeks auth login --profile local") {
+		t.Fatalf("output = %s", out.String())
+	}
+}

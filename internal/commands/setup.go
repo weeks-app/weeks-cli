@@ -33,7 +33,7 @@ func NewSetupCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.profile, "profile", "default", "Profile name to create or update")
+	cmd.Flags().StringVar(&opts.profile, "profile", "default", "Profile name to create or select")
 	cmd.Flags().StringVar(&opts.baseURL, "base-url", "", "weeks installation this profile targets")
 	cmd.Flags().StringVar(&opts.clientID, "client-id", "", "OAuth client id for this installation")
 	cmd.Flags().BoolVar(&opts.login, "login", false, "Sign in after saving the profile")
@@ -127,7 +127,7 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 		result["authenticated"] = true
 	} else {
 		loginCmd := "weeks auth login"
-		if profile != "" && !opts.skipProfile {
+		if profile != "" {
 			loginCmd += " --profile " + profile
 		}
 		crumbs = append(crumbs, output.Breadcrumb{Action: "login", Cmd: loginCmd, Description: "Sign in when you are ready"})
@@ -149,16 +149,15 @@ func saveSetupProfile(app *appctx.App, name, baseURL, clientID string) error {
 		p.Extra = map[string]json.RawMessage{"client_id": encoded}
 	}
 
-	if profiles, _, err := app.Profiles.List(); err != nil {
+	profiles, _, err := app.Profiles.List()
+	if err != nil {
 		return fmt.Errorf("could not read profiles: %w", err)
-	} else if _, exists := profiles[name]; exists {
-		if err := app.Profiles.Delete(name); err != nil {
-			return fmt.Errorf("could not update the profile: %w", err)
-		}
 	}
 
-	if err := app.Profiles.Create(p); err != nil {
-		return fmt.Errorf("could not save the profile: %w", err)
+	if _, exists := profiles[name]; !exists {
+		if err := app.Profiles.Create(p); err != nil {
+			return fmt.Errorf("could not save the profile: %w", err)
+		}
 	}
 	if err := app.Profiles.SetDefault(name); err != nil {
 		return fmt.Errorf("saved the profile but could not make it the default: %w", err)
