@@ -127,7 +127,7 @@ usually happens somewhere else.
 ## Profiles are the team boundary
 
 ```bash
-weeks profile set acme --base-url https://acme.weeks.io
+weeks profile set acme --base-url https://weeks.app
 weeks auth login --profile acme
 weeks --profile acme <command>
 ```

@@ -145,7 +145,7 @@ func TestStyledOutputIsNotJSON(t *testing.T) {
 	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
 
 	if err := w.OK(map[string]any{"grant": "device_code"},
-		output.WithSummary("Signed in to https://acme.weeks.io."),
+		output.WithSummary("Signed in to https://weeks.app."),
 		output.WithBreadcrumbs(output.Breadcrumb{
 			Action: "verify", Cmd: "weeks auth status", Description: "Confirm the credential",
 		}),
@@ -157,7 +157,7 @@ func TestStyledOutputIsNotJSON(t *testing.T) {
 	if strings.Contains(got, `"ok"`) {
 		t.Errorf("styled output leaked the envelope:\n%s", got)
 	}
-	for _, want := range []string{"Signed in to https://acme.weeks.io.", "grant", "device_code", "weeks auth status"} {
+	for _, want := range []string{"Signed in to https://weeks.app.", "grant", "device_code", "weeks auth status"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("styled output is missing %q:\n%s", want, got)
 		}

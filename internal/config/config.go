@@ -10,7 +10,7 @@ import (
 // DefaultBaseURL is the hosted weeks installation. A profile, WEEKS_BASE_URL,
 // or --base-url overrides it — which is how a collection points the CLI at the
 // Rails server running on its own WEEKS_APP_PORT.
-const DefaultBaseURL = "https://app.weeks.io"
+const DefaultBaseURL = "https://weeks.app"
 
 // EnvBaseURL overrides the base URL for a single invocation.
 const EnvBaseURL = "WEEKS_BASE_URL"

@@ -41,7 +41,7 @@ go install github.com/weeks-app/weeks-cli/cmd/weeks@latest
 ## Getting started
 
 ```bash
-weeks profile set acme --base-url https://acme.weeks.io --default
+weeks profile set acme --base-url https://weeks.app --default
 weeks auth login
 weeks doctor --json
 ```
@@ -135,7 +135,7 @@ so `weeks --profile acme` and `weeks --profile beta` are as separated as two
 machines would be.
 
 ```bash
-weeks profile set beta --base-url https://beta.weeks.io
+weeks profile set beta --base-url https://weeks.app
 weeks auth login --profile beta
 weeks --profile beta doctor --json
 ```
