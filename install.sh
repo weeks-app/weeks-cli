@@ -82,6 +82,10 @@ mkdir -p "$install_dir"
 tar -xzf "$tmp_dir/$asset" -C "$tmp_dir" "$bin_name"
 install "$tmp_dir/$bin_name" "$install_dir/$bin_name"
 
+if [ "$os" = "darwin" ] && command -v xattr >/dev/null 2>&1; then
+  xattr -d com.apple.quarantine "$install_dir/$bin_name" >/dev/null 2>&1 || true
+fi
+
 installed_version="$("$install_dir/$bin_name" version --json 2>/dev/null | sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/weeks \1/p' | head -n 1)"
 [ -n "$installed_version" ] || installed_version="$bin_name $version"
 say "Installed $installed_version"
