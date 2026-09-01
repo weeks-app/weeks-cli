@@ -13,6 +13,10 @@ import (
 // Rails server running on its own WEEKS_APP_PORT.
 const DefaultBaseURL = "https://weeks.app"
 
+// DefaultHostedClientID is the public, device-only OAuth client id shipped for
+// the hosted weeks installation.
+const DefaultHostedClientID = "weeks-cli"
+
 // IsHostedBaseURL reports whether baseURL points at the canonical hosted weeks
 // app. Only that installation can rely on the CLI's built-in OAuth client id.
 func IsHostedBaseURL(baseURL string) bool {

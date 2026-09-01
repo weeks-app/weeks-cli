@@ -54,6 +54,14 @@ func newAuthLoginCmd() *cobra.Command {
 						"or store it on a profile with `weeks profile set`.",
 				}
 			}
+			if browser && config.IsHostedBaseURL(app.BaseURL) && app.ClientID == config.DefaultHostedClientID {
+				return &output.Error{
+					Code:    output.CodeUsage,
+					Message: "the hosted weeks OAuth client supports device login only",
+					Hint: "Run `weeks auth login` without --browser, or configure " + config.EnvClientID +
+						" for a client with a loopback redirect URI.",
+				}
+			}
 
 			// A login waits on a human. Ctrl-C has to end the wait, not leave
 			// a polling loop running until the device code expires.
@@ -104,7 +112,7 @@ func newAuthLoginCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&browser, "browser", false, "Use the authorization code grant with PKCE and a local redirect")
+	cmd.Flags().BoolVar(&browser, "browser", false, "Use authorization code with PKCE for a client that has a loopback redirect")
 	cmd.Flags().StringVar(&scope, "scope", "", "OAuth scopes to request (default: the provider's own default)")
 	return cmd
 }

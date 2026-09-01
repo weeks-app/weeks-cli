@@ -22,7 +22,7 @@ import (
 // against the hosted installation. A self-hosted or development weeks issues
 // its own Platform::Application, so WEEKS_CLIENT_ID or the profile overrides
 // it, and the default only applies to the hosted base URL.
-const DefaultClientID = "weeks-cli"
+const DefaultClientID = config.DefaultHostedClientID
 
 type rootFlags struct {
 	json     bool
