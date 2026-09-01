@@ -159,7 +159,7 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 		prof = known[name]
 	}
 
-	baseURL := resolveBaseURL(flags.baseURL, prof)
+	baseURL := config.NormalizeBaseURL(resolveBaseURL(flags.baseURL, prof))
 	clientID := os.Getenv(config.EnvClientID)
 	if clientID == "" && prof != nil {
 		clientID = profileClientID(prof)

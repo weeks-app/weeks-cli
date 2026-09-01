@@ -55,6 +55,25 @@ func TestBuildAppUsesDefaultClientIDForHostedBaseURL(t *testing.T) {
 	}
 }
 
+func TestBuildAppNormalizesHostedAccountURL(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+
+	app, err := buildApp(&rootFlags{baseURL: "https://weeks.app/account/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.BaseURL != config.DefaultBaseURL {
+		t.Fatalf("BaseURL = %q, want %q", app.BaseURL, config.DefaultBaseURL)
+	}
+	if app.ClientID != DefaultClientID {
+		t.Fatalf("ClientID = %q, want %q", app.ClientID, DefaultClientID)
+	}
+}
+
 func TestBuildAppLeavesClientIDEmptyForCustomBaseURL(t *testing.T) {
 	t.Setenv(config.EnvConfigDir, t.TempDir())
 	t.Setenv(config.EnvBaseURL, "")
