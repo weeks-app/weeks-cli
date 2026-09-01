@@ -18,14 +18,11 @@ import (
 	"github.com/weeks-app/weeks-cli/internal/version"
 )
 
-// DefaultClientID is the OAuth client id weeks-cli authenticates as against
-// the hosted installation. A self-hosted or development weeks issues its own
-// Platform::Application, so WEEKS_CLIENT_ID or the profile overrides it.
-//
-// It is deliberately empty until the hosted application exists: an empty
-// client id fails at login with a message that says what to set, which is
-// better than a plausible-looking id that fails inside Doorkeeper.
-const DefaultClientID = ""
+// DefaultClientID is the public OAuth client id weeks-cli authenticates as
+// against the hosted installation. A self-hosted or development weeks issues
+// its own Platform::Application, so WEEKS_CLIENT_ID or the profile overrides
+// it, and the default only applies to the hosted base URL.
+const DefaultClientID = "weeks-cli"
 
 type rootFlags struct {
 	json     bool
@@ -162,11 +159,12 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 		prof = known[name]
 	}
 
+	baseURL := resolveBaseURL(flags.baseURL, prof)
 	clientID := os.Getenv(config.EnvClientID)
 	if clientID == "" && prof != nil {
 		clientID = profileClientID(prof)
 	}
-	if clientID == "" {
+	if clientID == "" && config.IsHostedBaseURL(baseURL) {
 		clientID = DefaultClientID
 	}
 
@@ -177,7 +175,7 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 			Verbose: flags.verbose,
 		}),
 		Profile:     name,
-		BaseURL:     resolveBaseURL(flags.baseURL, prof),
+		BaseURL:     baseURL,
 		ClientID:    clientID,
 		Agent:       flags.agent || flags.json,
 		Interactive: interactive(flags),

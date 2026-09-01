@@ -146,7 +146,7 @@ weeks --profile beta doctor --json
 |---|---|
 | `WEEKS_BASE_URL` | Target installation, overriding the profile |
 | `WEEKS_PROFILE` | Profile to use, without `--profile` |
-| `WEEKS_CLIENT_ID` | OAuth client id (a self-hosted weeks issues its own) |
+| `WEEKS_CLIENT_ID` | OAuth client id override; required for self-hosted or local weeks installations |
 | `WEEKS_CONFIG_DIR` | Where config and file-backed credentials live |
 | `WEEKS_NO_KEYRING` | Force file-backed credential storage |
 
