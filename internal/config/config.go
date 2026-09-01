@@ -5,12 +5,35 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // DefaultBaseURL is the hosted weeks installation. A profile, WEEKS_BASE_URL,
 // or --base-url overrides it — which is how a collection points the CLI at the
 // Rails server running on its own WEEKS_APP_PORT.
 const DefaultBaseURL = "https://weeks.app"
+
+// DefaultHostedClientID is the public, device-only OAuth client id shipped for
+// the hosted weeks installation.
+const DefaultHostedClientID = "weeks-cli"
+
+// IsHostedBaseURL reports whether baseURL points at the hosted weeks app. It
+// accepts /account links too because NormalizeBaseURL folds them to the
+// canonical installation root. Only that installation can rely on the CLI's
+// built-in OAuth client id.
+func IsHostedBaseURL(baseURL string) bool {
+	return NormalizeBaseURL(baseURL) == DefaultBaseURL
+}
+
+// NormalizeBaseURL folds product-page links for the hosted app back to the
+// installation root that owns the OAuth and API endpoints.
+func NormalizeBaseURL(baseURL string) string {
+	normalized := strings.TrimRight(baseURL, "/")
+	if normalized == DefaultBaseURL+"/account" {
+		return DefaultBaseURL
+	}
+	return normalized
+}
 
 // EnvBaseURL overrides the base URL for a single invocation.
 const EnvBaseURL = "WEEKS_BASE_URL"

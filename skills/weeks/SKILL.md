@@ -124,6 +124,11 @@ nothing opens a browser on its own — pressing Enter offers to open one here,
 and ignoring that prompt is a normal way to finish, because the approval
 usually happens somewhere else.
 
+The hosted `https://weeks.app` installation has a built-in public OAuth client
+id. Local and self-hosted installations issue their own client id; set
+`WEEKS_CLIENT_ID` or store it on the profile with `weeks profile set
+--client-id`.
+
 ## Profiles are the team boundary
 
 ```bash

@@ -39,6 +39,57 @@ func TestBuildAppUsesProfileClientID(t *testing.T) {
 	}
 }
 
+func TestBuildAppUsesDefaultClientIDForHostedBaseURL(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+
+	app, err := buildApp(&rootFlags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.ClientID != DefaultClientID {
+		t.Fatalf("ClientID = %q, want %q", app.ClientID, DefaultClientID)
+	}
+}
+
+func TestBuildAppNormalizesHostedAccountURL(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+
+	app, err := buildApp(&rootFlags{baseURL: "https://weeks.app/account/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.BaseURL != config.DefaultBaseURL {
+		t.Fatalf("BaseURL = %q, want %q", app.BaseURL, config.DefaultBaseURL)
+	}
+	if app.ClientID != DefaultClientID {
+		t.Fatalf("ClientID = %q, want %q", app.ClientID, DefaultClientID)
+	}
+}
+
+func TestBuildAppLeavesClientIDEmptyForCustomBaseURL(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, t.TempDir())
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+
+	app, err := buildApp(&rootFlags{baseURL: "http://localhost:3000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.ClientID != "" {
+		t.Fatalf("ClientID = %q, want empty for a custom base URL", app.ClientID)
+	}
+}
+
 func TestBuildAppEnvClientIDOverridesProfileClientID(t *testing.T) {
 	t.Setenv(config.EnvConfigDir, t.TempDir())
 	t.Setenv(config.EnvBaseURL, "")
