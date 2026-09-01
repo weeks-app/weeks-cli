@@ -87,7 +87,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	defer func() { _ = os.RemoveAll(tmp) }()
 	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
-	os.Exit(m.Run())
+	code := m.Run()
+	_ = os.RemoveAll(tmp)
+	os.Exit(code)
 }
