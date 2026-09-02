@@ -33,11 +33,16 @@ For a new machine, run:
 weeks setup --profile default
 ```
 
-In a terminal, it creates or selects the default profile, installs this embedded
-skill for Claude Code, and starts the device login flow. Add `--base-url` or
-`--client-id` when configuring a non-hosted installation. Use `--skip-login`
-when you only want setup to write profile and skill files. In JSON or other
-non-interactive runs, setup never starts login unless you pass `--login`.
+In a terminal, it creates or selects the default profile in the current
+folder's `./.weeks/` directory, installs this embedded skill for Claude Code,
+and starts the device login flow. Local credentials are file-backed in
+`./.weeks/credentials.json` so another folder's agent cannot silently reuse
+them. Add root-position `--global` only when you deliberately want the
+user-wide config and keyring-preferred credentials, for example
+`weeks --global setup`. Add `--base-url` or `--client-id` when
+configuring a non-hosted installation. Use `--skip-login` when you only want
+setup to write profile and skill files. In JSON or other non-interactive runs,
+setup never starts login unless you pass `--login`.
 
 ## Two shapes, and which one you get
 

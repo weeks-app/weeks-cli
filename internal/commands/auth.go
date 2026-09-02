@@ -88,20 +88,22 @@ func newAuthLoginCmd() *cobra.Command {
 			}
 
 			data := map[string]any{
-				"base_url":   creds.BaseURL,
-				"profile":    app.Profile,
-				"storage":    storageName(app.Creds()),
-				"scope":      creds.Scope,
-				"expires_at": expiryOrNil(creds),
-				"grant":      grantName(browser),
-				"client_id":  creds.ClientID,
+				"base_url":     creds.BaseURL,
+				"profile":      app.Profile,
+				"config_scope": app.ConfigScope,
+				"config_dir":   app.ConfigDir,
+				"storage":      storageName(app.Creds()),
+				"oauth_scope":  creds.Scope,
+				"expires_at":   expiryOrNil(creds),
+				"grant":        grantName(browser),
+				"client_id":    creds.ClientID,
 			}
 
 			opts := []output.ResponseOption{
 				output.WithSummary(fmt.Sprintf("Signed in to %s%s.", creds.BaseURL, profileSuffix(app.Profile))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "verify", Cmd: "weeks auth status", Description: "Confirm the stored credential still works"},
-					output.Breadcrumb{Action: "diagnose", Cmd: "weeks doctor --json", Description: "Check config, credentials, and connectivity"},
+					output.Breadcrumb{Action: "verify", Cmd: scopedCommand(app, "weeks auth status"), Description: "Confirm the stored credential still works"},
+					output.Breadcrumb{Action: "diagnose", Cmd: scopedCommand(app, "weeks doctor --json"), Description: "Check config, credentials, and connectivity"},
 					output.Breadcrumb{Action: "discover", Cmd: "weeks commands --json", Description: "List every command this binary offers"},
 				),
 			}
@@ -243,16 +245,18 @@ func newAuthLogoutCmd() *cobra.Command {
 			opts := []output.ResponseOption{
 				output.WithSummary(fmt.Sprintf("Signed out of %s%s.", app.BaseURL, profileSuffix(app.Profile))),
 				output.WithBreadcrumbs(output.Breadcrumb{
-					Action: "login", Cmd: "weeks auth login", Description: "Sign in again",
+					Action: "login", Cmd: scopedCommand(app, "weeks auth login"), Description: "Sign in again",
 				}),
 			}
 			if notice != "" {
 				opts = append(opts, output.WithNotice(notice))
 			}
 			return app.Out.OK(map[string]any{
-				"base_url": app.BaseURL,
-				"profile":  app.Profile,
-				"revoked":  revoke && notice == "",
+				"base_url":     app.BaseURL,
+				"profile":      app.Profile,
+				"config_scope": app.ConfigScope,
+				"config_dir":   app.ConfigDir,
+				"revoked":      revoke && notice == "",
 			}, opts...)
 		},
 	}
@@ -290,15 +294,17 @@ func newAuthStatusCmd() *cobra.Command {
 				"authenticated": true,
 				"base_url":      creds.BaseURL,
 				"profile":       app.Profile,
+				"config_scope":  app.ConfigScope,
+				"config_dir":    app.ConfigDir,
 				"storage":       storageName(app.Creds()),
-				"scope":         creds.Scope,
+				"oauth_scope":   creds.Scope,
 				"expires_at":    expiryOrNil(creds),
 				"created_at":    creds.CreatedAt.Format(time.RFC3339),
 				"client_id":     creds.ClientID,
 			},
 				output.WithSummary(fmt.Sprintf("Signed in to %s%s.", creds.BaseURL, profileSuffix(app.Profile))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "diagnose", Cmd: "weeks doctor --json", Description: "Check config, credentials, and connectivity"},
+					output.Breadcrumb{Action: "diagnose", Cmd: scopedCommand(app, "weeks doctor --json"), Description: "Check config, credentials, and connectivity"},
 					output.Breadcrumb{Action: "discover", Cmd: "weeks commands --json", Description: "List every command this binary offers"},
 				),
 			)

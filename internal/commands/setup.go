@@ -65,12 +65,14 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 	result := map[string]any{
 		"profile":       nil,
 		"base_url":      baseURL,
+		"config_scope":  app.ConfigScope,
+		"config_dir":    app.ConfigDir,
 		"skill_path":    nil,
 		"skill_updated": false,
 		"authenticated": false,
 	}
 	crumbs := []output.Breadcrumb{
-		{Action: "doctor", Cmd: "weeks doctor --json", Description: "Check config, credentials, and agent setup"},
+		{Action: "doctor", Cmd: scopedCommand(app, "weeks doctor --json"), Description: "Check config, credentials, and agent setup"},
 		{Action: "discover", Cmd: "weeks commands --json", Description: "List every command this binary offers"},
 	}
 
@@ -105,6 +107,8 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 			Profile:     profile,
 			BaseURL:     baseURL,
 			ClientID:    clientID,
+			ConfigDir:   app.ConfigDir,
+			ConfigScope: app.ConfigScope,
 			Agent:       app.Agent,
 			Confirm:     app.Confirm,
 			Verbose:     app.Verbose,
@@ -130,13 +134,10 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 		}
 		result["authenticated"] = true
 		crumbs = append(crumbs, output.Breadcrumb{
-			Action: "teams", Cmd: "weeks teams list --profile " + profile, Description: "List teams this profile can access",
+			Action: "teams", Cmd: profileCommand(app, "weeks teams list", profile), Description: "List teams this profile can access",
 		})
 	} else {
-		loginCmd := "weeks auth login"
-		if profile != "" {
-			loginCmd += " --profile " + profile
-		}
+		loginCmd := profileCommand(app, "weeks auth login", profile)
 		crumbs = append(crumbs, output.Breadcrumb{Action: "login", Cmd: loginCmd, Description: "Sign in when you are ready"})
 	}
 

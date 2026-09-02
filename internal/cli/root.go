@@ -36,6 +36,7 @@ type rootFlags struct {
 	confirm  bool
 	profile  string
 	baseURL  string
+	global   bool
 }
 
 // Execute builds the command tree, runs it, and exits with the code the
@@ -111,6 +112,7 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 	pf.BoolVar(&flags.confirm, "confirm", false, "Proceed past a confirmation_required gate")
 	pf.StringVar(&flags.profile, "profile", "", "Named profile to act as (default: the configured one)")
 	pf.StringVar(&flags.baseURL, "base-url", "", "weeks installation to talk to")
+	pf.BoolVar(&flags.global, "global", false, "Use the global config and credential store instead of this folder's .weeks directory")
 
 	// --help --agent has to be answered before Cobra prints its own help,
 	// which is why help is a function on the command rather than a flag we
@@ -136,7 +138,8 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 // buildApp resolves everything a command needs from flags, environment, and
 // stored config.
 func buildApp(flags *rootFlags) (*appctx.App, error) {
-	profiles := bcprofile.NewStore(config.ProfilesPath())
+	configDir, configScope := config.ResolveDir(flags.global)
+	profiles := bcprofile.NewStore(config.ProfilesPathIn(configDir))
 
 	known, configuredDefault, err := profiles.List()
 	if err != nil {
@@ -180,6 +183,8 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 		Profile:     name,
 		BaseURL:     baseURL,
 		ClientID:    clientID,
+		ConfigDir:   configDir,
+		ConfigScope: configScope,
 		Agent:       flags.agent || flags.json,
 		Interactive: interactive(flags),
 		Confirm:     flags.confirm,

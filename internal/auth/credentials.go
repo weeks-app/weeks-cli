@@ -18,6 +18,9 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -65,7 +68,9 @@ func (c *Credentials) ExpiringWithin(d time.Duration) bool {
 // Store persists credentials, preferring the system keyring and falling back
 // to a 0600 file when there is no keyring to reach.
 type Store struct {
-	inner *credstore.Store
+	inner     *credstore.Store
+	fileDir   string
+	forceFile bool
 }
 
 // NewStore opens the credential store for this machine.
@@ -74,21 +79,47 @@ type Store struct {
 // can block. The toolkit grew a bounded probe after v0.2.1, its newest tag;
 // until that ships, WEEKS_NO_KEYRING=1 is the escape hatch for a headless or
 // locked machine, and `weeks doctor` reports which store is actually in use.
-func NewStore() *Store {
+func NewStore(configDir string) *Store {
+	if configDir == "" {
+		configDir = config.Dir()
+	}
 	return &Store{
 		inner: credstore.NewStore(credstore.StoreOptions{
 			ServiceName:   ServiceName,
 			DisableEnvVar: config.EnvNoKeyring,
-			FallbackDir:   config.Dir(),
+			FallbackDir:   configDir,
 		}),
 	}
 }
 
+// NewFileStore opens a file-only credential store rooted at configDir.
+func NewFileStore(configDir string) *Store {
+	if configDir == "" {
+		configDir = config.Dir()
+	}
+	return &Store{fileDir: configDir, forceFile: true}
+}
+
 // UsingKeyring reports whether credentials go to the system keyring.
-func (s *Store) UsingKeyring() bool { return s.inner.UsingKeyring() }
+func (s *Store) UsingKeyring() bool {
+	return !s.forceFile && s.inner.UsingKeyring()
+}
 
 // FallbackWarning describes why the keyring was not used, or "" if it was.
-func (s *Store) FallbackWarning() string { return s.inner.FallbackWarning() }
+func (s *Store) FallbackWarning() string {
+	if s.forceFile {
+		return ""
+	}
+	return s.inner.FallbackWarning()
+}
+
+// FilePath returns the credentials file path when credentials are file-backed.
+func (s *Store) FilePath() string {
+	if s.forceFile {
+		return filepath.Join(s.fileDir, "credentials.json")
+	}
+	return ""
+}
 
 // key names the credential slot for a profile. Without a profile the base URL
 // is the slot, so switching installations without naming a profile still
@@ -99,7 +130,7 @@ func key(profileName, baseURL string) string {
 
 // Load reads the credentials for a profile.
 func (s *Store) Load(profileName, baseURL string) (*Credentials, error) {
-	data, err := s.inner.Load(key(profileName, baseURL))
+	data, err := s.load(key(profileName, baseURL))
 	if err != nil {
 		return nil, err
 	}
@@ -121,10 +152,115 @@ func (s *Store) Save(profileName string, creds *Credentials) error {
 	if err != nil {
 		return fmt.Errorf("encoding credentials: %w", err)
 	}
-	return s.inner.Save(key(profileName, creds.BaseURL), data)
+	return s.save(key(profileName, creds.BaseURL), data)
 }
 
 // Delete removes the credentials for a profile.
 func (s *Store) Delete(profileName, baseURL string) error {
-	return s.inner.Delete(key(profileName, baseURL))
+	return s.delete(key(profileName, baseURL))
+}
+
+func (s *Store) load(name string) ([]byte, error) {
+	if !s.forceFile {
+		return s.inner.Load(name)
+	}
+	all, err := s.loadAllFromFile()
+	if err != nil {
+		return nil, err
+	}
+	data, ok := all[name]
+	if !ok {
+		return nil, fmt.Errorf("credentials not found for %s", name)
+	}
+	return data, nil
+}
+
+func (s *Store) save(name string, data []byte) error {
+	if !s.forceFile {
+		return s.inner.Save(name, data)
+	}
+	all, err := s.loadAllFromFile()
+	if err != nil {
+		return err
+	}
+	all[name] = data
+	return s.saveAllToFile(all)
+}
+
+func (s *Store) delete(name string) error {
+	if !s.forceFile {
+		return s.inner.Delete(name)
+	}
+	all, err := s.loadAllFromFile()
+	if err != nil {
+		return err
+	}
+	delete(all, name)
+	return s.saveAllToFile(all)
+}
+
+func (s *Store) loadAllFromFile() (map[string][]byte, error) {
+	data, err := os.ReadFile(s.FilePath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(map[string][]byte), nil
+		}
+		return nil, err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	all := make(map[string][]byte, len(raw))
+	for k, v := range raw {
+		all[k] = []byte(v)
+	}
+	return all, nil
+}
+
+func (s *Store) saveAllToFile(all map[string][]byte) error {
+	if err := os.MkdirAll(s.fileDir, 0700); err != nil {
+		return err
+	}
+
+	raw := make(map[string]json.RawMessage, len(all))
+	for k, v := range all {
+		raw[k] = json.RawMessage(v)
+	}
+	data, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(s.fileDir, "credentials-*.json.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := tmpFile.Chmod(0600); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+
+	destPath := s.FilePath()
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		if runtime.GOOS == "windows" {
+			_ = os.Remove(destPath)
+			return os.Rename(tmpPath, destPath)
+		}
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }

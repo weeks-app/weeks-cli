@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	bcprofile "github.com/basecamp/cli/profile"
@@ -36,6 +37,74 @@ func TestBuildAppUsesProfileClientID(t *testing.T) {
 
 	if app.ClientID != "local-client" {
 		t.Fatalf("ClientID = %q, want local-client", app.ClientID)
+	}
+}
+
+func TestBuildAppUsesLocalConfigByDefault(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, "")
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	localDir := filepath.Join(dir, ".weeks")
+	store := bcprofile.NewStore(config.ProfilesPathIn(localDir))
+	if err := store.Create(&bcprofile.Profile{Name: "local", BaseURL: "https://local.example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := buildApp(&rootFlags{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.Profile != "local" {
+		t.Fatalf("Profile = %q, want local", app.Profile)
+	}
+	if app.BaseURL != "https://local.example" {
+		t.Fatalf("BaseURL = %q, want local profile URL", app.BaseURL)
+	}
+	if app.ConfigScope != config.ScopeLocal {
+		t.Fatalf("ConfigScope = %q, want local", app.ConfigScope)
+	}
+	if app.ConfigDir != localDir {
+		t.Fatalf("ConfigDir = %q, want %q", app.ConfigDir, localDir)
+	}
+}
+
+func TestBuildAppGlobalFlagUsesGlobalConfig(t *testing.T) {
+	t.Setenv(config.EnvConfigDir, "")
+	t.Setenv(config.EnvBaseURL, "")
+	t.Setenv(config.EnvClientID, "")
+	t.Setenv(config.EnvProfile, "")
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Chdir(t.TempDir())
+
+	globalDir := filepath.Join(xdg, "weeks")
+	store := bcprofile.NewStore(config.ProfilesPathIn(globalDir))
+	if err := store.Create(&bcprofile.Profile{Name: "global", BaseURL: "https://global.example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := buildApp(&rootFlags{global: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if app.Profile != "global" {
+		t.Fatalf("Profile = %q, want global", app.Profile)
+	}
+	if app.BaseURL != "https://global.example" {
+		t.Fatalf("BaseURL = %q, want global profile URL", app.BaseURL)
+	}
+	if app.ConfigScope != config.ScopeGlobal {
+		t.Fatalf("ConfigScope = %q, want global", app.ConfigScope)
+	}
+	if app.ConfigDir != globalDir {
+		t.Fatalf("ConfigDir = %q, want %q", app.ConfigDir, globalDir)
 	}
 }
 

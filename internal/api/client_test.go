@@ -27,7 +27,7 @@ func TestGetJSONUsesStoredBearerTokenAndQuery(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := auth.NewStore()
+	store := auth.NewFileStore(config.Dir())
 	if err := store.Save("", &auth.Credentials{AccessToken: "tok", BaseURL: server.URL}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestGetJSONRequiresCredentials(t *testing.T) {
 	t.Setenv(config.EnvNoKeyring, "1")
 	t.Setenv("HOME", t.TempDir())
 
-	_, err := (&Client{BaseURL: "https://weeks.test", Creds: auth.NewStore()}).GetJSON(context.Background(), "/api/v1/teams", nil)
+	_, err := (&Client{BaseURL: "https://weeks.test", Creds: auth.NewFileStore(config.Dir())}).GetJSON(context.Background(), "/api/v1/teams", nil)
 	if output.AsError(err).Code != output.CodeAuth {
 		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
 	}
@@ -71,7 +71,7 @@ func TestGetJSONMapsHTTPStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := auth.NewStore()
+	store := auth.NewFileStore(config.Dir())
 	if err := store.Save("", &auth.Credentials{AccessToken: "tok", BaseURL: server.URL}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
+	_ = os.Setenv(config.EnvConfigDir, filepath.Join(tmp, "config"))
 	code := m.Run()
 	_ = os.RemoveAll(tmp)
 	os.Exit(code)

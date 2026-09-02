@@ -60,23 +60,25 @@ func newProfileListCmd() *cobra.Command {
 			rows := make([]map[string]any, 0, len(names))
 			for _, name := range names {
 				rows = append(rows, map[string]any{
-					"id":         name,
-					"name":       name,
-					"base_url":   profiles[name].BaseURL,
-					"is_default": name == defaultName,
-					"active":     name == app.Profile,
+					"id":           name,
+					"name":         name,
+					"base_url":     profiles[name].BaseURL,
+					"config_scope": app.ConfigScope,
+					"config_dir":   app.ConfigDir,
+					"is_default":   name == defaultName,
+					"active":       name == app.Profile,
 				})
 			}
 
 			summary := fmt.Sprintf("%d profiles configured.", len(rows))
 			crumbs := []output.Breadcrumb{
-				{Action: "add", Cmd: "weeks profile set <name> --base-url <url>", Description: "Add or update a profile"},
+				{Action: "add", Cmd: scopedCommand(app, "weeks profile set <name> --base-url <url>"), Description: "Add or update a profile"},
 			}
 			if len(rows) == 0 {
 				summary = "No profiles configured; commands use " + app.BaseURL + "."
 			} else {
 				crumbs = append(crumbs, output.Breadcrumb{
-					Action: "default", Cmd: "weeks profile default <name>", Description: "Choose the profile used when none is named",
+					Action: "default", Cmd: scopedCommand(app, "weeks profile default <name>"), Description: "Choose the profile used when none is named",
 				})
 			}
 
@@ -126,15 +128,17 @@ func newProfileSetCmd() *cobra.Command {
 			}
 
 			return app.Out.OK(map[string]any{
-				"id":         name,
-				"name":       name,
-				"base_url":   baseURL,
-				"client_id":  clientID,
-				"is_default": makeDefault,
+				"id":           name,
+				"name":         name,
+				"base_url":     baseURL,
+				"client_id":    clientID,
+				"config_scope": app.ConfigScope,
+				"config_dir":   app.ConfigDir,
+				"is_default":   makeDefault,
 			},
 				output.WithSummary(fmt.Sprintf("Profile %s points at %s.", name, baseURL)),
 				output.WithBreadcrumbs(output.Breadcrumb{
-					Action: "login", Cmd: "weeks auth login --profile " + name, Description: "Sign in as this profile",
+					Action: "login", Cmd: profileCommand(app, "weeks auth login", name), Description: "Sign in as this profile",
 				}),
 			)
 		},
@@ -173,10 +177,10 @@ func newProfileRemoveCmd() *cobra.Command {
 				return fmt.Errorf("could not remove the profile: %w", err)
 			}
 
-			return app.Out.OK(map[string]any{"id": name, "name": name},
+			return app.Out.OK(map[string]any{"id": name, "name": name, "config_scope": app.ConfigScope, "config_dir": app.ConfigDir},
 				output.WithSummary(fmt.Sprintf("Removed profile %s and its stored credential.", name)),
 				output.WithBreadcrumbs(output.Breadcrumb{
-					Action: "list", Cmd: "weeks profile list", Description: "See what is left",
+					Action: "list", Cmd: scopedCommand(app, "weeks profile list"), Description: "See what is left",
 				}),
 			)
 		},
@@ -204,7 +208,7 @@ func newProfileDefaultCmd() *cobra.Command {
 				return fmt.Errorf("could not choose default profile: %w", err)
 			}
 
-			return app.Out.OK(map[string]any{"id": name, "name": name, "is_default": true},
+			return app.Out.OK(map[string]any{"id": name, "name": name, "config_scope": app.ConfigScope, "config_dir": app.ConfigDir, "is_default": true},
 				output.WithSummary(fmt.Sprintf("Profile %s is now the default.", name)),
 			)
 		},

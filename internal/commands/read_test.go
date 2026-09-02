@@ -139,9 +139,10 @@ func readTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *
 	t.Helper()
 	t.Setenv(config.EnvNoKeyring, "1")
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv(config.EnvConfigDir, t.TempDir())
 
 	server := httptest.NewServer(handler)
-	store := auth.NewStore()
+	store := auth.NewFileStore(config.Dir())
 	if err := store.Save("", &auth.Credentials{AccessToken: "tok", BaseURL: server.URL}); err != nil {
 		server.Close()
 		t.Fatalf("Save: %v", err)
@@ -149,8 +150,10 @@ func readTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *
 
 	var out bytes.Buffer
 	app := &appctx.App{
-		Out:     output.New(output.Options{Format: output.FormatStyled, Writer: &out}),
-		BaseURL: server.URL,
+		Out:         output.New(output.Options{Format: output.FormatStyled, Writer: &out}),
+		BaseURL:     server.URL,
+		ConfigDir:   config.Dir(),
+		ConfigScope: config.ScopeEnv,
 	}
 	t.Cleanup(func() {
 		if t.Failed() {

@@ -41,8 +41,7 @@ go install github.com/weeks-app/weeks-cli/cmd/weeks@latest
 ## Getting started
 
 ```bash
-weeks profile set acme --base-url https://weeks.app --default
-weeks auth login
+weeks setup
 weeks doctor --json
 ```
 
@@ -127,12 +126,29 @@ The catalog is derived from the live command tree, so it cannot drift from what
 the binary can actually do. That is the point of publishing it on demand rather
 than making an agent carry a tool list in its context forever.
 
+## Storage Scope
+
+By default, `weeks` stores profiles and credentials in `./.weeks/` for the
+folder where the command runs. That keeps an agent working in one project from
+silently reusing a login from another project. Local credentials are written to
+`./.weeks/credentials.json` with mode 0600.
+
+Use `--global` when you deliberately want the user-wide config under
+`$XDG_CONFIG_HOME/weeks` or `~/.config/weeks`; global credentials prefer the
+system keyring and fall back to a 0600 file.
+
+```bash
+weeks setup                 # writes ./.weeks/config.json and credentials.json
+weeks --global setup        # writes the user-wide profile and credential
+weeks --global teams list   # reads the global login
+```
+
 ## Profiles are the team boundary
 
-Credentials are stored per profile — in the system keyring where there is one,
-in a 0600 file where there is not. One profile can never read another's token,
-so `weeks --profile acme` and `weeks --profile beta` are as separated as two
-machines would be.
+Credentials are stored per profile inside the selected storage scope. One
+profile can never read another's token, so `weeks --profile acme` and
+`weeks --profile beta` are separated; using folder-local storage also separates
+agents by working directory.
 
 ```bash
 weeks profile set beta --base-url https://weeks.app

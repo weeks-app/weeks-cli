@@ -101,7 +101,7 @@ func runChecks(ctx context.Context, app *appctx.App) *DoctorResult {
 	}
 
 	add(checkVersion())
-	add(checkConfigDir())
+	add(checkConfigDir(app))
 	add(checkProfile(app))
 
 	credCheck, creds := checkCredentials(app)
@@ -124,8 +124,8 @@ func checkVersion() Check {
 	}
 }
 
-func checkConfigDir() Check {
-	dir := config.Dir()
+func checkConfigDir(app *appctx.App) Check {
+	dir := app.ConfigDir
 
 	info, err := os.Stat(dir)
 	if os.IsNotExist(err) {
@@ -161,7 +161,7 @@ func checkConfigDir() Check {
 		}
 	}
 
-	return Check{ID: "config", Name: "Config directory", Status: StatusPass, Message: dir}
+	return Check{ID: "config", Name: "Config directory", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", dir, app.ConfigScope)}
 }
 
 func checkProfile(app *appctx.App) Check {
@@ -169,7 +169,7 @@ func checkProfile(app *appctx.App) Check {
 	if err != nil {
 		return Check{
 			ID: "profile", Name: "Profiles", Status: StatusFail,
-			Message: fmt.Sprintf("cannot read %s: %v", config.ProfilesPath(), err),
+			Message: fmt.Sprintf("cannot read %s: %v", config.ProfilesPathIn(app.ConfigDir), err),
 			Hint:    "The file is not valid JSON. Fix or remove it.",
 		}
 	}
@@ -232,15 +232,21 @@ func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
 		// File storage that was asked for is a decision, not a fault — a
 		// headless box or a container has no keyring to reach, and warning
 		// about it every run trains people to ignore the warnings that matter.
+		if app.ConfigScope == config.ScopeLocal || app.ConfigScope == config.ScopeEnv {
+			return Check{
+				ID: "credentials", Name: "Credentials", Status: StatusPass,
+				Message: "stored in a 0600 file at " + app.ConfigDir,
+			}, summary
+		}
 		if os.Getenv(config.EnvNoKeyring) != "" {
 			return Check{
 				ID: "credentials", Name: "Credentials", Status: StatusPass,
-				Message: fmt.Sprintf("stored in a 0600 file at %s, because %s is set", config.Dir(), config.EnvNoKeyring),
+				Message: fmt.Sprintf("stored in a 0600 file at %s, because %s is set", app.ConfigDir, config.EnvNoKeyring),
 			}, summary
 		}
 		warning := app.Creds().FallbackWarning()
 		if warning == "" {
-			warning = "the system keyring is not in use; credentials are stored in a 0600 file at " + config.Dir()
+			warning = "the system keyring is not in use; credentials are stored in a 0600 file at " + app.ConfigDir
 		}
 		return Check{
 			ID: "credentials", Name: "Credentials", Status: StatusWarn,
