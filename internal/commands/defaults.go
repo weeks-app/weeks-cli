@@ -189,7 +189,7 @@ func requireLocalDefaults(app *appctx.App) error {
 }
 
 func listSpaces(cmd *cobra.Command, app *appctx.App, teamID string) (ResourceList, error) {
-	data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/teams/"+url.PathEscape(teamID)+"/spaces", nil)
+	data, err := apiGetJSON(cmd, app, "/api/v1/teams/"+url.PathEscape(teamID)+"/spaces", nil)
 	if err != nil {
 		return nil, err
 	}
