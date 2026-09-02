@@ -9,10 +9,10 @@ description: Plan and staff work in weeks from the command line. Use for weeks s
 built to be driven by an agent: every command answers with the same JSON
 envelope, and every answer suggests what to do next.
 
-**This binary is at the bootstrap stage.** Auth, discovery, and diagnostics
-work; the scheduling commands do not exist yet. `weeks commands --json` is
-always the truth about what this binary can do — trust it over any example in
-this document.
+**This binary is early.** Auth, discovery, diagnostics, and basic read commands
+for spaces and plans work. Most scheduling commands do not exist yet. `weeks
+commands --json` is always the truth about what this binary can do — trust it
+over any example in this document.
 
 ## Before anything else
 
@@ -26,6 +26,18 @@ a task rather than carrying a command list around: it is derived from the
 binary's own command tree, so it is always exactly what this binary can do.
 For one command, `weeks <command> --help --agent` returns the same structured
 entry.
+
+For a new machine, run:
+
+```bash
+weeks setup --profile default
+```
+
+In a terminal, it creates or selects the default profile, installs this embedded
+skill for Claude Code, and starts the device login flow. Add `--base-url` or
+`--client-id` when configuring a non-hosted installation. Use `--skip-login`
+when you only want setup to write profile and skill files. In JSON or other
+non-interactive runs, setup never starts login unless you pass `--login`.
 
 ## Two shapes, and which one you get
 
@@ -141,11 +153,43 @@ Credentials are stored per profile, so one profile can never read another's
 token. When work spans two teams, use two profiles — never one credential with
 wider access.
 
+## Basic reads
+
+```bash
+weeks teams list
+weeks teams view <team-id>
+
+weeks spaces list
+weeks spaces list --team <team-id>
+weeks spaces view <space-id>
+weeks spaces view <space-id> --include overview
+
+weeks plans list --space <space-id>
+weeks plans view <plan-id>
+weeks plans view <plan-id> --include snapshot
+```
+
+`view` means a GET of one API resource. JSON output preserves the resource
+shape the API returned. Human output is a compact projection of the same data:
+name, id, important references, counts, and collection sizes.
+
+Use typed IDs exactly as the API returns them, such as `team_...`, `space_...`,
+and `plan_...`. `weeks spaces list` defaults the team only when the profile can
+access exactly one team; otherwise run `weeks teams list` and pass
+`--team <team-id>`. Listing plans needs a space id because plans live inside a
+space.
+
+Include scopes are passed straight to the API. Useful starting points:
+
+- `spaces view --include counts` for people and plan counts.
+- `spaces view --include overview` for counts, people, plans, and plan counts.
+- `plans view --include counts` for people, jobs, slots, and inbox counts.
+- `plans view --include snapshot` for people, jobs, inboxes, slots, assignments,
+  routes, and related planning hints.
+
 ## Vocabulary
 
-These are the words the product uses; say them back to the user. Commands that
-read and write these things are not in this binary yet, but the vocabulary is
-what the domain is made of, and it is what a planner will say to you.
+These are the words the product uses; say them back to the user.
 
 - **Space** — the top-level container a team plans inside.
 - **Plan** — a schedule within a space: a production, an event, a period.
