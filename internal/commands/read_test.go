@@ -150,6 +150,35 @@ func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
 	}
 }
 
+func TestSlotJobPeopleSkipsNamelessParticipation(t *testing.T) {
+	job := Resource{"people": []any{
+		map[string]any{"participation_status": "confirmed", "comment": "Lead"},
+		map[string]any{"assigned_person_id": "slot_person_abc", "participation_status": "confirmed"},
+	}}
+	lookup := planLookup{slotPeople: map[string]string{"slot_person_abc": "Dana"}}
+
+	got := slotJobPeople(job, lookup)
+	if len(got) != 1 || got[0] != "Dana confirmed" {
+		t.Fatalf("slotJobPeople = %#v, want only named participation", got)
+	}
+}
+
+func TestIsEmptySnapshotValueTreatsTypedEmptySlices(t *testing.T) {
+	for _, value := range []any{
+		[]string{},
+		[]map[string]any{},
+		[0]string{},
+	} {
+		if !isEmptySnapshotValue(value) {
+			t.Fatalf("isEmptySnapshotValue(%T) = false, want true", value)
+		}
+	}
+
+	if isEmptySnapshotValue([]string{"person_abc"}) {
+		t.Fatal("isEmptySnapshotValue(non-empty []string) = true, want false")
+	}
+}
+
 func TestResourceListRendersTypedTeamIDs(t *testing.T) {
 	list := ResourceList{{"id": "team_abc", "name": "Ops"}}
 

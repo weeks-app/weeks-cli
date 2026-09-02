@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -629,6 +630,9 @@ func slotJobPeople(job Resource, lookup planLookup) []string {
 	for _, raw := range assigned {
 		person := resource(raw)
 		name := lookup.personName(stringValue(person["assigned_person_id"]))
+		if name == "" {
+			continue
+		}
 		if status := stringValue(person["participation_status"]); status != "" {
 			name += " " + status
 		}
@@ -673,6 +677,10 @@ func isEmptySnapshotValue(value any) bool {
 	case map[string]any:
 		return len(typed) == 0 || summarizeMap(typed) == ""
 	default:
+		value := reflect.ValueOf(value)
+		if value.Kind() == reflect.Slice || value.Kind() == reflect.Array {
+			return value.Len() == 0
+		}
 		return false
 	}
 }
