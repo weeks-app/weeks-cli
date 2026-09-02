@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	bcprofile "github.com/basecamp/cli/profile"
@@ -186,5 +188,32 @@ func TestBuildAppEnvClientIDOverridesProfileClientID(t *testing.T) {
 
 	if app.ClientID != "env-client" {
 		t.Fatalf("ClientID = %q, want env-client", app.ClientID)
+	}
+}
+
+func TestPromptSetupStoreDefaultsToLocal(t *testing.T) {
+	var errOut bytes.Buffer
+
+	got, err := promptSetupStore(strings.NewReader("\n"), &errOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got != config.ScopeLocal {
+		t.Fatalf("store = %q, want local", got)
+	}
+	if !strings.Contains(errOut.String(), "Local folder ./.weeks") {
+		t.Fatalf("prompt = %q", errOut.String())
+	}
+}
+
+func TestPromptSetupStoreCanChooseGlobal(t *testing.T) {
+	got, err := promptSetupStore(strings.NewReader("2\n"), &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got != config.ScopeGlobal {
+		t.Fatalf("store = %q, want global", got)
 	}
 }

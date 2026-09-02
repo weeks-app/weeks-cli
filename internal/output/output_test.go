@@ -15,6 +15,12 @@ import (
 func TestOKEnvelopeShape(t *testing.T) {
 	var buf bytes.Buffer
 	w := output.New(output.Options{Format: output.FormatJSON, Writer: &buf})
+	w.SetDefaultContext(map[string]any{
+		"profile":      "default",
+		"config_scope": "local",
+		"config_dir":   "/work/.weeks",
+		"base_url":     "https://weeks.app",
+	})
 
 	err := w.OK(map[string]any{"id": 1},
 		output.WithSummary("One thing."),
@@ -34,6 +40,13 @@ func TestOKEnvelopeShape(t *testing.T) {
 	}
 	if got["summary"] != "One thing." {
 		t.Errorf("summary = %v", got["summary"])
+	}
+	context, ok := got["context"].(map[string]any)
+	if !ok {
+		t.Fatalf("context = %v, want object", got["context"])
+	}
+	if context["profile"] != "default" || context["config_scope"] != "local" {
+		t.Errorf("context = %v", context)
 	}
 	crumbs, ok := got["breadcrumbs"].([]any)
 	if !ok || len(crumbs) != 1 {
@@ -93,6 +106,7 @@ func TestErrorEnvelopeNeverClaimsSuccess(t *testing.T) {
 func TestErrorEnvelopeCanCarryBreadcrumbs(t *testing.T) {
 	var buf bytes.Buffer
 	w := output.New(output.Options{Format: output.FormatJSON, Writer: &buf})
+	w.SetDefaultContext(map[string]any{"profile": "acme", "config_scope": "global"})
 
 	err := output.WithErrorNext(output.ErrUsage("--space is required"), output.Breadcrumb{
 		Action: "defaults", Cmd: "weeks defaults set", Description: "Choose defaults",
@@ -108,6 +122,10 @@ func TestErrorEnvelopeCanCarryBreadcrumbs(t *testing.T) {
 	crumbs, ok := got["breadcrumbs"].([]any)
 	if !ok || len(crumbs) != 1 {
 		t.Fatalf("breadcrumbs = %v, want one entry", got["breadcrumbs"])
+	}
+	context, ok := got["context"].(map[string]any)
+	if !ok || context["profile"] != "acme" || context["config_scope"] != "global" {
+		t.Fatalf("context = %v", got["context"])
 	}
 }
 
@@ -186,6 +204,12 @@ func TestExitCodeOfNilIsSuccess(t *testing.T) {
 func TestStyledOutputIsNotJSON(t *testing.T) {
 	var buf bytes.Buffer
 	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+	w.SetDefaultContext(map[string]any{
+		"profile":      "default",
+		"config_scope": "local",
+		"config_dir":   "/work/.weeks",
+		"base_url":     "https://weeks.app",
+	})
 
 	if err := w.OK(map[string]any{"grant": "device_code"},
 		output.WithSummary("Signed in to https://weeks.app."),
@@ -200,7 +224,7 @@ func TestStyledOutputIsNotJSON(t *testing.T) {
 	if strings.Contains(got, `"ok"`) {
 		t.Errorf("styled output leaked the envelope:\n%s", got)
 	}
-	for _, want := range []string{"Signed in to https://weeks.app.", "grant", "device_code", "weeks auth status"} {
+	for _, want := range []string{"Signed in to https://weeks.app.", "Using", "profile", "default", "config store", "local (/work/.weeks)", "grant", "device_code", "weeks auth status"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("styled output is missing %q:\n%s", want, got)
 		}

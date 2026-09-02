@@ -97,6 +97,12 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 {
   "ok": true,
   "data": {},
+  "context": {
+    "profile": "default",
+    "config_scope": "local",
+    "config_dir": "/path/to/project/.weeks",
+    "base_url": "https://weeks.app"
+  },
   "summary": "One sentence a human can read.",
   "breadcrumbs": [
     {"action": "verify", "cmd": "weeks auth status", "description": "Confirm the credential works"}
@@ -118,6 +124,7 @@ Failures never set `ok` to true:
 | `--count` | The number of results |
 | `--agent` | The shape an agent reads: JSON output *and* structured help |
 | `--profile` | Act as a named profile |
+| `--global` | Use the global config and credential store |
 | `--confirm` | Proceed past a `confirmation_required` gate |
 
 ### Exit codes
@@ -162,7 +169,8 @@ than making an agent carry a tool list in its context forever.
 By default, `weeks` stores profiles and credentials in `./.weeks/` for the
 folder where the command runs. That keeps an agent working in one project from
 silently reusing a login from another project. Local credentials are written to
-`./.weeks/credentials.json` with mode 0600.
+`./.weeks/credentials.json` with mode 0600. Interactive `weeks setup` asks
+where to save the profile and credential; pressing enter chooses local storage.
 
 Use `--global` when you deliberately want the user-wide config under
 `$XDG_CONFIG_HOME/weeks` or `~/.config/weeks`; global credentials prefer the
@@ -173,6 +181,10 @@ weeks setup                 # writes ./.weeks/config.json and credentials.json
 weeks --global setup        # writes the user-wide profile and credential
 weeks --global teams list   # reads the global login
 ```
+
+Every normal envelope also includes a `context` object naming the active
+profile, config scope, config directory, and base URL. Pretty terminal output
+prints the same facts under `Using`.
 
 Folder-local storage can also remember a default team and space for read
 commands. In a terminal, `weeks defaults set` lets you choose from the teams

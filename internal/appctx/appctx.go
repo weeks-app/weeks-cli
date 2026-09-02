@@ -94,8 +94,14 @@ func With(ctx context.Context, app *App) context.Context {
 // zero value keeps a mis-wired command printing a real error instead of
 // panicking on a nil writer.
 func From(cmd *cobra.Command) *App {
-	if app, ok := cmd.Context().Value(key{}).(*App); ok && app != nil {
+	if app, ok := Lookup(cmd.Context()); ok {
 		return app
 	}
 	return &App{Out: output.New(output.DefaultOptions())}
+}
+
+// Lookup returns the App carried by ctx, if root setup has installed one.
+func Lookup(ctx context.Context) (*App, bool) {
+	app, ok := ctx.Value(key{}).(*App)
+	return app, ok && app != nil
 }

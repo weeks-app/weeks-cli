@@ -33,6 +33,7 @@ type ErrorResponse struct {
 	Code        string         `json:"code"`
 	Hint        string         `json:"hint,omitempty"`
 	Breadcrumbs []Breadcrumb   `json:"breadcrumbs,omitempty"`
+	Context     map[string]any `json:"context,omitempty"`
 	Meta        map[string]any `json:"meta,omitempty"`
 }
 
@@ -59,9 +60,10 @@ func WithErrorNext(err error, crumbs ...Breadcrumb) error {
 // Everything else is delegated unchanged, so the envelope an agent reads comes
 // from the toolkit in every mode where an agent is reading.
 type Writer struct {
-	inner  *output.Writer
-	opts   Options
-	target io.Writer
+	inner          *output.Writer
+	opts           Options
+	target         io.Writer
+	defaultContext map[string]any
 }
 
 // New creates a writer.
@@ -70,6 +72,11 @@ func New(opts Options) *Writer {
 		opts.Writer = os.Stdout
 	}
 	return &Writer{inner: output.New(opts), opts: opts, target: opts.Writer}
+}
+
+// SetDefaultContext adds invocation facts every envelope should carry.
+func (w *Writer) SetDefaultContext(context map[string]any) {
+	w.defaultContext = context
 }
 
 // DefaultOptions returns options for standard output.
@@ -86,6 +93,7 @@ func (w *Writer) styled() bool {
 
 // OK writes a success response.
 func (w *Writer) OK(data any, opts ...ResponseOption) error {
+	opts = appendDefaultContext(opts, w.defaultContext)
 	if !w.styled() {
 		return w.inner.OK(data, opts...)
 	}
@@ -100,6 +108,9 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 func (w *Writer) Err(err error, opts ...ErrorResponseOption) error {
 	structured := AsError(err)
 	resp := &ErrorResponse{OK: false, Error: structured.Message, Code: structured.Code, Hint: structured.Hint}
+	if len(w.defaultContext) > 0 {
+		resp.Context = cloneContext(w.defaultContext)
+	}
 	var withCrumbs *BreadcrumbError
 	if errors.As(err, &withCrumbs) {
 		resp.Breadcrumbs = append(resp.Breadcrumbs, withCrumbs.Breadcrumbs...)
@@ -123,6 +134,25 @@ type ErrorResponseOption func(*ErrorResponse)
 
 func WithErrorBreadcrumbs(b ...Breadcrumb) ErrorResponseOption {
 	return func(r *ErrorResponse) { r.Breadcrumbs = append(r.Breadcrumbs, b...) }
+}
+
+func appendDefaultContext(opts []ResponseOption, context map[string]any) []ResponseOption {
+	if len(context) == 0 {
+		return opts
+	}
+	withContext := make([]ResponseOption, 0, len(context)+len(opts))
+	for key, value := range context {
+		withContext = append(withContext, WithContext(key, value))
+	}
+	return append(withContext, opts...)
+}
+
+func cloneContext(context map[string]any) map[string]any {
+	cloned := make(map[string]any, len(context))
+	for key, value := range context {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func renderErrorMarkdown(w io.Writer, resp *ErrorResponse) error {

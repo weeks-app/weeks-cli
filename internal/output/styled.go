@@ -85,6 +85,12 @@ func renderStyled(w io.Writer, resp *Response, style *Style) error {
 		}
 	}
 
+	if len(resp.Context) > 0 {
+		if err := renderContext(w, resp.Context, style); err != nil {
+			return err
+		}
+	}
+
 	if resp.Data != nil {
 		if _, err := fmt.Fprintln(w); err != nil {
 			return err
@@ -102,6 +108,35 @@ func renderStyled(w io.Writer, resp *Response, style *Style) error {
 		return renderBreadcrumbs(w, resp.Breadcrumbs, style)
 	}
 
+	return nil
+}
+
+func renderContext(w io.Writer, context map[string]any, style *Style) error {
+	if _, err := fmt.Fprintf(w, "\n%sUsing%s\n", style.Dim, style.Reset); err != nil {
+		return err
+	}
+
+	profile := scalar(context["profile"])
+	if profile == "—" {
+		profile = "(none)"
+	}
+	if _, err := fmt.Fprintf(w, "  %sprofile%s       %s\n", style.Dim, style.Reset, profile); err != nil {
+		return err
+	}
+
+	store := scalar(context["config_scope"])
+	if dir := scalar(context["config_dir"]); dir != "—" {
+		store += " (" + dir + ")"
+	}
+	if _, err := fmt.Fprintf(w, "  %sconfig store%s  %s\n", style.Dim, style.Reset, store); err != nil {
+		return err
+	}
+
+	if baseURL := scalar(context["base_url"]); baseURL != "—" {
+		if _, err := fmt.Fprintf(w, "  %sbase url%s      %s\n", style.Dim, style.Reset, baseURL); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -142,6 +177,11 @@ func renderErrorStyled(w io.Writer, resp *ErrorResponse, style *Style) error {
 	}
 	if resp.Hint != "" {
 		if _, err := fmt.Fprintf(w, "  %s\n", resp.Hint); err != nil {
+			return err
+		}
+	}
+	if len(resp.Context) > 0 {
+		if err := renderContext(w, resp.Context, style); err != nil {
 			return err
 		}
 	}

@@ -30,19 +30,19 @@ entry.
 For a new machine, run:
 
 ```bash
-weeks setup --profile default
+weeks setup
 ```
 
-In a terminal, it creates or selects the default profile in the current
-folder's `./.weeks/` directory, installs this embedded skill for Claude Code,
-and starts the device login flow. Local credentials are file-backed in
-`./.weeks/credentials.json` so another folder's agent cannot silently reuse
-them. Add root-position `--global` only when you deliberately want the
-user-wide config and keyring-preferred credentials, for example
-`weeks --global setup`. Add `--base-url` or `--client-id` when
-configuring a non-hosted installation. Use `--skip-login` when you only want
-setup to write profile and skill files. In JSON or other non-interactive runs,
-setup never starts login unless you pass `--login`.
+In a terminal, it asks where to save the profile and credential. The default is
+the current folder's `./.weeks/` directory; pressing enter chooses that. Local
+credentials are file-backed in `./.weeks/credentials.json` so another folder's
+agent cannot silently reuse them. It also installs this embedded skill for
+Claude Code and starts the device login flow. Add root-position `--global` only
+when you deliberately want the user-wide config and keyring-preferred
+credentials, for example `weeks --global setup`. Add `--base-url` or
+`--client-id` when configuring a non-hosted installation. Use `--skip-login`
+when you only want setup to write profile and skill files. In JSON or other
+non-interactive runs, setup never starts login unless you pass `--login`.
 
 ## Two shapes, and which one you get
 
@@ -64,6 +64,12 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 {
   "ok": true,
   "data": {},
+  "context": {
+    "profile": "default",
+    "config_scope": "local",
+    "config_dir": "/path/to/project/.weeks",
+    "base_url": "https://weeks.app"
+  },
   "summary": "One sentence a human can read.",
   "breadcrumbs": [
     {"action": "verify", "cmd": "weeks auth status", "description": "Confirm the credential works"}
@@ -73,6 +79,8 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 
 - **`ok`** — whether the command succeeded. Check this first.
 - **`data`** — the payload. An object for one thing, an array for a listing.
+- **`context`** — active invocation facts: profile, config store, config
+  directory, and base URL. Pretty output prints the same facts under `Using`.
 - **`summary`** — one sentence. Use it verbatim when reporting back.
 - **`breadcrumbs`** — the commands that usually come next. They are the cheapest
   way to plan: follow one rather than guessing at a command that may not exist.

@@ -141,10 +141,23 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 		crumbs = append(crumbs, output.Breadcrumb{Action: "login", Cmd: loginCmd, Description: "Sign in when you are ready"})
 	}
 
+	app.Out.SetDefaultContext(map[string]any{
+		"profile":      emptyStringNil(profile),
+		"base_url":     baseURL,
+		"config_scope": app.ConfigScope,
+		"config_dir":   app.ConfigDir,
+	})
 	return app.Out.OK(result,
 		output.WithSummary("weeks setup is ready."),
 		output.WithBreadcrumbs(crumbs...),
 	)
+}
+
+func emptyStringNil(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func saveSetupProfile(app *appctx.App, name, baseURL, clientID string) error {
