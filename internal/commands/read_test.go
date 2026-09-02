@@ -199,6 +199,26 @@ func TestReadAuthBreadcrumbsRespectGlobalScope(t *testing.T) {
 	}
 }
 
+func TestSelectionBreadcrumbsRespectScopeAndProfile(t *testing.T) {
+	local := &appctx.App{ConfigScope: config.ScopeLocal, Profile: "acme"}
+	teamCrumbs := teamSelectionBreadcrumbs(local)
+	if teamCrumbs[0].Cmd != "weeks defaults set --profile acme" {
+		t.Fatalf("local team defaults breadcrumb = %q", teamCrumbs[0].Cmd)
+	}
+	if teamCrumbs[1].Cmd != "weeks teams list --profile acme" {
+		t.Fatalf("local team list breadcrumb = %q", teamCrumbs[1].Cmd)
+	}
+
+	global := &appctx.App{ConfigScope: config.ScopeGlobal, Profile: "acme"}
+	spaceCrumbs := spaceSelectionBreadcrumbs(global)
+	if len(spaceCrumbs) != 1 {
+		t.Fatalf("global space breadcrumbs = %#v, want only list", spaceCrumbs)
+	}
+	if spaceCrumbs[0].Cmd != "weeks --global spaces list --profile acme" {
+		t.Fatalf("global space list breadcrumb = %q", spaceCrumbs[0].Cmd)
+	}
+}
+
 func readTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *appctx.App) {
 	t.Helper()
 	t.Setenv(config.EnvNoKeyring, "1")

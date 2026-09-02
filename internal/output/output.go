@@ -107,6 +107,9 @@ func (w *Writer) Err(err error, opts ...ErrorResponseOption) error {
 	for _, opt := range opts {
 		opt(resp)
 	}
+	if w.opts.Format == FormatMarkdown {
+		return renderErrorMarkdown(w.target, resp)
+	}
 	if !w.styled() {
 		enc := json.NewEncoder(w.target)
 		enc.SetIndent("", "  ")
@@ -120,6 +123,29 @@ type ErrorResponseOption func(*ErrorResponse)
 
 func WithErrorBreadcrumbs(b ...Breadcrumb) ErrorResponseOption {
 	return func(r *ErrorResponse) { r.Breadcrumbs = append(r.Breadcrumbs, b...) }
+}
+
+func renderErrorMarkdown(w io.Writer, resp *ErrorResponse) error {
+	if _, err := fmt.Fprintf(w, "**Error:** %s\n\n`%s`\n", resp.Error, resp.Code); err != nil {
+		return err
+	}
+	if resp.Hint != "" {
+		if _, err := fmt.Fprintf(w, "\n%s\n", resp.Hint); err != nil {
+			return err
+		}
+	}
+	if len(resp.Breadcrumbs) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "\n**Next**"); err != nil {
+		return err
+	}
+	for _, crumb := range resp.Breadcrumbs {
+		if _, err := fmt.Fprintf(w, "- `%s` - %s\n", crumb.Cmd, crumb.Description); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Format modes.

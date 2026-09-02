@@ -49,8 +49,8 @@ func newTeamsListCmd() *cobra.Command {
 			return app.Out.OK(teams,
 				output.WithSummary(fmt.Sprintf("%d teams.", len(teams))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "view", Cmd: "weeks teams view <team-id>", Description: "Fetch one team"},
-					output.Breadcrumb{Action: "spaces", Cmd: "weeks spaces list --team <team-id>", Description: "List spaces inside a team"},
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks teams view <team-id>", app.Profile), Description: "Fetch one team"},
+					output.Breadcrumb{Action: "spaces", Cmd: profileCommand(app, "weeks spaces list --team <team-id>", app.Profile), Description: "List spaces inside a team"},
 				),
 			)
 		},
@@ -73,7 +73,7 @@ func newTeamsViewCmd() *cobra.Command {
 			return app.Out.OK(team,
 				output.WithSummary(fmt.Sprintf("Team %s.", resourceLabel(team))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "spaces", Cmd: "weeks spaces list --team " + idOf(team), Description: "List spaces inside this team"},
+					output.Breadcrumb{Action: "spaces", Cmd: profileCommand(app, "weeks spaces list --team "+idOf(team), app.Profile), Description: "List spaces inside this team"},
 				),
 			)
 		},
@@ -117,8 +117,8 @@ func newSpacesListCmd() *cobra.Command {
 			return app.Out.OK(spaces,
 				output.WithSummary(fmt.Sprintf("%d spaces.", len(spaces))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "view", Cmd: "weeks spaces view <space-id>", Description: "Fetch one space"},
-					output.Breadcrumb{Action: "plans", Cmd: "weeks plans list --space <space-id>", Description: "List plans inside a space"},
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks spaces view <space-id>", app.Profile), Description: "Fetch one space"},
+					output.Breadcrumb{Action: "plans", Cmd: profileCommand(app, "weeks plans list --space <space-id>", app.Profile), Description: "List plans inside a space"},
 				),
 			)
 		},
@@ -144,8 +144,8 @@ func newSpacesViewCmd() *cobra.Command {
 			return app.Out.OK(space,
 				output.WithSummary(fmt.Sprintf("Space %s.", resourceLabel(space))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "plans", Cmd: "weeks plans list --space " + idOf(space), Description: "List plans inside this space"},
-					output.Breadcrumb{Action: "overview", Cmd: "weeks spaces view " + idOf(space) + " --include overview", Description: "Fetch people, plans, and counts"},
+					output.Breadcrumb{Action: "plans", Cmd: profileCommand(app, "weeks plans list --space "+idOf(space), app.Profile), Description: "List plans inside this space"},
+					output.Breadcrumb{Action: "overview", Cmd: profileCommand(app, "weeks spaces view "+idOf(space)+" --include overview", app.Profile), Description: "Fetch people, plans, and counts"},
 				),
 			)
 		},
@@ -192,8 +192,8 @@ func newPlansListCmd() *cobra.Command {
 			return app.Out.OK(plans,
 				output.WithSummary(fmt.Sprintf("%d plans.", len(plans))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "view", Cmd: "weeks plans view <plan-id>", Description: "Fetch one plan"},
-					output.Breadcrumb{Action: "snapshot", Cmd: "weeks plans view <plan-id> --include snapshot", Description: "Fetch the full planning snapshot"},
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks plans view <plan-id>", app.Profile), Description: "Fetch one plan"},
+					output.Breadcrumb{Action: "snapshot", Cmd: profileCommand(app, "weeks plans view <plan-id> --include snapshot", app.Profile), Description: "Fetch the full planning snapshot"},
 				),
 			)
 		},
@@ -218,8 +218,8 @@ func newPlansViewCmd() *cobra.Command {
 			return app.Out.OK(plan,
 				output.WithSummary(fmt.Sprintf("Plan %s.", resourceLabel(plan))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "space", Cmd: "weeks spaces view " + stringValue(plan["space_id"]), Description: "Fetch the space this plan belongs to"},
-					output.Breadcrumb{Action: "snapshot", Cmd: "weeks plans view " + idOf(plan) + " --include snapshot", Description: "Fetch people, jobs, slots, and assignments"},
+					output.Breadcrumb{Action: "space", Cmd: profileCommand(app, "weeks spaces view "+stringValue(plan["space_id"]), app.Profile), Description: "Fetch the space this plan belongs to"},
+					output.Breadcrumb{Action: "snapshot", Cmd: profileCommand(app, "weeks plans view "+idOf(plan)+" --include snapshot", app.Profile), Description: "Fetch people, jobs, slots, and assignments"},
 				),
 			)
 		},
@@ -257,17 +257,17 @@ func readErrorNext(app *appctx.App, err error) error {
 func teamSelectionBreadcrumbs(app *appctx.App) []output.Breadcrumb {
 	crumbs := []output.Breadcrumb{}
 	if app.ConfigScope == config.ScopeLocal {
-		crumbs = append(crumbs, output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default team for this folder"})
+		crumbs = append(crumbs, output.Breadcrumb{Action: "defaults", Cmd: profileCommand(app, "weeks defaults set", app.Profile), Description: "Choose a default team for this folder"})
 	}
-	return append(crumbs, output.Breadcrumb{Action: "teams", Cmd: scopedCommand(app, "weeks teams list"), Description: "List teams you can access"})
+	return append(crumbs, output.Breadcrumb{Action: "teams", Cmd: profileCommand(app, "weeks teams list", app.Profile), Description: "List teams you can access"})
 }
 
 func spaceSelectionBreadcrumbs(app *appctx.App) []output.Breadcrumb {
 	crumbs := []output.Breadcrumb{}
 	if app.ConfigScope == config.ScopeLocal {
-		crumbs = append(crumbs, output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default space for this folder"})
+		crumbs = append(crumbs, output.Breadcrumb{Action: "defaults", Cmd: profileCommand(app, "weeks defaults set", app.Profile), Description: "Choose a default space for this folder"})
 	}
-	return append(crumbs, output.Breadcrumb{Action: "spaces", Cmd: scopedCommand(app, "weeks spaces list"), Description: "List spaces you can access"})
+	return append(crumbs, output.Breadcrumb{Action: "spaces", Cmd: profileCommand(app, "weeks spaces list", app.Profile), Description: "List spaces you can access"})
 }
 
 func listTeams(cmd *cobra.Command, app *appctx.App) (ResourceList, error) {

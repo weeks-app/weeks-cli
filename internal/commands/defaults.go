@@ -46,7 +46,7 @@ func newDefaultsShowCmd() *cobra.Command {
 			},
 				output.WithSummary(defaultsSummary(current)),
 				output.WithBreadcrumbs(output.Breadcrumb{
-					Action: "set", Cmd: "weeks defaults set", Description: "Choose defaults for this folder",
+					Action: "set", Cmd: defaultsCommand(app, "weeks defaults set"), Description: "Choose defaults for this folder",
 				}),
 			)
 		},
@@ -92,7 +92,7 @@ func newDefaultsSetCmd() *cobra.Command {
 			if chosenTeam == "" {
 				return output.WithErrorNext(
 					output.ErrUsage("--team is required outside interactive setup"),
-					output.Breadcrumb{Action: "teams", Cmd: "weeks teams list", Description: "List teams you can access"},
+					teamSelectionBreadcrumbs(app)...,
 				)
 			}
 
@@ -127,8 +127,8 @@ func newDefaultsSetCmd() *cobra.Command {
 			},
 				output.WithSummary(defaultsSummary(current)),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "spaces", Cmd: "weeks spaces list", Description: "Use the default team"},
-					output.Breadcrumb{Action: "plans", Cmd: "weeks plans list", Description: "Use the default space"},
+					output.Breadcrumb{Action: "spaces", Cmd: profileCommand(app, "weeks spaces list", profileName), Description: "Use the default team"},
+					output.Breadcrumb{Action: "plans", Cmd: profileCommand(app, "weeks plans list", profileName), Description: "Use the default space"},
 				),
 			)
 		},
@@ -171,7 +171,7 @@ func newDefaultsClearCmd() *cobra.Command {
 			},
 				output.WithSummary("Cleared default team and space."),
 				output.WithBreadcrumbs(output.Breadcrumb{
-					Action: "set", Cmd: "weeks defaults set", Description: "Choose new defaults",
+					Action: "set", Cmd: defaultsCommand(app, "weeks defaults set"), Description: "Choose new defaults",
 				}),
 			)
 		},
@@ -184,8 +184,15 @@ func requireLocalDefaults(app *appctx.App) error {
 	}
 	return output.WithErrorNext(
 		output.ErrUsage("defaults are local to a working folder; run without --global or WEEKS_CONFIG_DIR"),
-		output.Breadcrumb{Action: "local", Cmd: "weeks defaults set", Description: "Choose folder-local defaults"},
+		output.Breadcrumb{Action: "local", Cmd: defaultsCommand(app, "weeks defaults set"), Description: "Choose folder-local defaults"},
 	)
+}
+
+func defaultsCommand(app *appctx.App, command string) string {
+	if app.Profile == "" {
+		return command
+	}
+	return command + " --profile " + app.Profile
 }
 
 func listSpaces(cmd *cobra.Command, app *appctx.App, teamID string) (ResourceList, error) {

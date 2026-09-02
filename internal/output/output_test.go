@@ -111,6 +111,28 @@ func TestErrorEnvelopeCanCarryBreadcrumbs(t *testing.T) {
 	}
 }
 
+func TestMarkdownErrorIsNotJSON(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatMarkdown, Writer: &buf})
+
+	err := output.WithErrorNext(output.ErrUsage("--space is required"), output.Breadcrumb{
+		Action: "spaces", Cmd: "weeks spaces list", Description: "List spaces",
+	})
+	if writeErr := w.Err(err); writeErr != nil {
+		t.Fatalf("Err: %v", writeErr)
+	}
+
+	got := buf.String()
+	if strings.Contains(got, `"ok"`) {
+		t.Errorf("markdown error leaked JSON:\n%s", got)
+	}
+	for _, want := range []string{"**Error:** --space is required", "`usage`", "**Next**", "`weeks spaces list`"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("markdown error is missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestConfirmationRequiredHasItsOwnExitCode(t *testing.T) {
 	err := output.ErrConfirmationRequired("gated")
 
