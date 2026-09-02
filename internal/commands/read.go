@@ -829,15 +829,6 @@ func durationSummary(value any) string {
 	}
 }
 
-func firstStringValue(values map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if value := stringValue(values[key]); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func summarizeCounts(counts map[string]any) string {
 	keys := make([]string, 0, len(counts))
 	for key := range counts {
