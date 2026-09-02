@@ -249,8 +249,8 @@ func readErrorNext(app *appctx.App, err error) error {
 		description = "Sign in to global storage"
 	}
 	return output.WithErrorNext(err,
-		output.Breadcrumb{Action: "login", Cmd: scopedCommand(app, "weeks auth login"), Description: description},
-		output.Breadcrumb{Action: "setup", Cmd: scopedCommand(app, "weeks setup"), Description: "Check config and agent setup"},
+		output.Breadcrumb{Action: "login", Cmd: profileCommand(app, "weeks auth login", app.Profile), Description: description},
+		output.Breadcrumb{Action: "setup", Cmd: profileCommand(app, "weeks setup", app.Profile), Description: "Check config and agent setup"},
 	)
 }
 

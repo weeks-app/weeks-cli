@@ -182,7 +182,7 @@ func TestPlansListUsesDefaultSpace(t *testing.T) {
 }
 
 func TestReadAuthBreadcrumbsRespectGlobalScope(t *testing.T) {
-	err := readErrorNext(&appctx.App{ConfigScope: config.ScopeGlobal}, output.ErrAuth("not signed in"))
+	err := readErrorNext(&appctx.App{ConfigScope: config.ScopeGlobal, Profile: "acme"}, output.ErrAuth("not signed in"))
 
 	var withCrumbs *output.BreadcrumbError
 	if !errors.As(err, &withCrumbs) {
@@ -191,10 +191,10 @@ func TestReadAuthBreadcrumbsRespectGlobalScope(t *testing.T) {
 	if len(withCrumbs.Breadcrumbs) != 2 {
 		t.Fatalf("breadcrumbs = %#v", withCrumbs.Breadcrumbs)
 	}
-	if withCrumbs.Breadcrumbs[0].Cmd != "weeks --global auth login" {
+	if withCrumbs.Breadcrumbs[0].Cmd != "weeks --global auth login --profile acme" {
 		t.Fatalf("login breadcrumb = %q", withCrumbs.Breadcrumbs[0].Cmd)
 	}
-	if withCrumbs.Breadcrumbs[1].Cmd != "weeks --global setup" {
+	if withCrumbs.Breadcrumbs[1].Cmd != "weeks --global setup --profile acme" {
 		t.Fatalf("setup breadcrumb = %q", withCrumbs.Breadcrumbs[1].Cmd)
 	}
 }
