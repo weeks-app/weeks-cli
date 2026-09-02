@@ -79,8 +79,9 @@ Use the typed IDs returned by the API, such as `team_...`, `space_...`, and
 then the folder default, then a sole accessible team. `weeks plans list`
 resolves its space from `--space` or the folder default.
 `view` returns one API resource, and JSON output preserves the resource shape
-returned by the server. Styled output expands included collections into
-readable sections rather than reducing them to collection counts.
+returned by the server. For plan reads, styled output expands requested plan
+collections into readable sections rather than reducing them to collection
+counts. Other resource types still summarize nested collections by count.
 
 Include scopes are passed to the API. `overview` adds counts, people, and plans
 to a space; `snapshot` adds the plan's people, jobs, inboxes, slots,
