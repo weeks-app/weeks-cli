@@ -105,3 +105,10 @@ func TestDefaultsShowRejectsGlobalScope(t *testing.T) {
 		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
 	}
 }
+
+func TestDefaultsCommandPreservesProfileWithoutGlobalScope(t *testing.T) {
+	got := defaultsCommand(&appctx.App{ConfigScope: config.ScopeGlobal, Profile: "acme"}, "weeks defaults set")
+	if got != "weeks defaults set --profile acme" {
+		t.Fatalf("command = %q", got)
+	}
+}
