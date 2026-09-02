@@ -204,20 +204,23 @@ weeks spaces list --team <team-id>
 weeks spaces view <space-id>
 weeks spaces view <space-id> --include overview
 
+weeks plans list
 weeks plans list --space <space-id>
 weeks plans view <plan-id>
 weeks plans view <plan-id> --include snapshot
 ```
 
 `view` means a GET of one API resource. JSON output preserves the resource
-shape the API returned. Human output is a compact projection of the same data:
-name, id, important references, counts, and collection sizes.
+shape the API returned. Human output is a readable projection of the same data:
+name, id, important references, and counts; requested collections are expanded
+into item sections instead of being collapsed to collection sizes.
 
 Use typed IDs exactly as the API returns them, such as `team_...`, `space_...`,
-and `plan_...`. `weeks spaces list` defaults the team only when the profile can
-access exactly one team; otherwise run `weeks teams list` and pass
-`--team <team-id>`. Listing plans needs a space id because plans live inside a
-space.
+and `plan_...`. `weeks spaces list` resolves its team from an explicit
+`--team`, then this folder's default team, then a sole accessible team.
+`weeks plans list` resolves its space from an explicit `--space` or this
+folder's default space. If neither can be resolved, list the parent resources
+and pass the typed id or set folder defaults.
 
 Include scopes are passed straight to the API. Useful starting points:
 
