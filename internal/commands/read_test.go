@@ -54,6 +54,68 @@ func TestResourceKeepsImportantKeysFirst(t *testing.T) {
 	}
 }
 
+func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
+	plan := PlanResource{
+		"id":       "plan_abc",
+		"name":     "Launch",
+		"space_id": "space_abc",
+		"people": []any{
+			map[string]any{
+				"id":           "person_abc",
+				"display_name": "Dana",
+				"role":         "Producer",
+				"space_person": map[string]any{"id": "space_person_abc", "name": "Dana"},
+			},
+		},
+		"jobs": []any{
+			map[string]any{"id": "job_abc", "name": "Lighting", "person_id": "person_abc"},
+		},
+		"slots": []any{
+			map[string]any{
+				"id":        "slot_abc",
+				"starts_at": "2026-09-02T09:00:00Z",
+				"job_id":    "job_abc",
+				"timeline": map[string]any{
+					"label":            "2026-09-02",
+					"starts_at":        "2026-09-02T09:00:00Z",
+					"ends_at_earliest": "2026-09-02T17:00:00Z",
+					"status":           "future",
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := plan.RenderStyled(&buf, &output.Style{}); err != nil {
+		t.Fatalf("RenderStyled: %v", err)
+	}
+
+	got := buf.String()
+	for _, want := range []string{
+		"id        plan_abc",
+		"people  1 items",
+		"person_abc  Dana",
+		"role  Producer",
+		"jobs  1 items",
+		"job_abc  Lighting",
+		"person id  person_abc",
+		"slots  1 items",
+		"slot_abc",
+		"starts at  2026-09-02T09:00:00Z",
+		"timeline   2026-09-02, starts 2026-09-02T09:00:00Z, ends 2026-09-02T17:00:00Z, future",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("rendered %q, missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "people      1 items") {
+		t.Fatalf("snapshot collection was collapsed into scalar fields:\n%s", got)
+	}
+	if strings.Contains(got, "space person") || strings.Contains(got, "map[") {
+		t.Fatalf("snapshot renderer leaked nested implementation detail:\n%s", got)
+	}
+}
+
 func TestResourceListRendersTypedTeamIDs(t *testing.T) {
 	list := ResourceList{{"id": "team_abc", "name": "Ops"}}
 

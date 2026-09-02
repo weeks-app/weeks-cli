@@ -23,6 +23,10 @@ type Resource map[string]any
 // human while still encoding as the server's array in JSON modes.
 type ResourceList []Resource
 
+// PlanResource renders included snapshot data as sections instead of reducing
+// every array to "N items".
+type PlanResource Resource
+
 // NewTeamsCmd builds `weeks teams`.
 func NewTeamsCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -214,12 +218,13 @@ func newPlansViewCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plan := resource(data)
+			plan := PlanResource(resource(data))
+			resourcePlan := Resource(plan)
 			return app.Out.OK(plan,
-				output.WithSummary(fmt.Sprintf("Plan %s.", resourceLabel(plan))),
+				output.WithSummary(fmt.Sprintf("Plan %s.", resourceLabel(resourcePlan))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "space", Cmd: profileCommand(app, "weeks spaces view "+stringValue(plan["space_id"]), app.Profile), Description: "Fetch the space this plan belongs to"},
-					output.Breadcrumb{Action: "snapshot", Cmd: profileCommand(app, "weeks plans view "+idOf(plan)+" --include snapshot", app.Profile), Description: "Fetch people, jobs, slots, and assignments"},
+					output.Breadcrumb{Action: "space", Cmd: profileCommand(app, "weeks spaces view "+stringValue(resourcePlan["space_id"]), app.Profile), Description: "Fetch the space this plan belongs to"},
+					output.Breadcrumb{Action: "snapshot", Cmd: profileCommand(app, "weeks plans view "+idOf(resourcePlan)+" --include snapshot", app.Profile), Description: "Fetch people, jobs, slots, and assignments"},
 				),
 			)
 		},
@@ -328,15 +333,21 @@ func resourceList(data any) ResourceList {
 }
 
 func (r Resource) RenderStyled(w io.Writer, style *output.Style) error {
-	keys := orderedKeys(r)
-	width := 0
-	for _, key := range keys {
-		if len(key) > width {
-			width = len(key)
-		}
+	return renderScalarFields(w, style, r, orderedKeys(r))
+}
+
+func (p PlanResource) RenderStyled(w io.Writer, style *output.Style) error {
+	plan := Resource(p)
+	if err := renderScalarFields(w, style, plan, orderedScalarKeys(plan)); err != nil {
+		return err
 	}
-	for _, key := range keys {
-		if _, err := fmt.Fprintf(w, "%s%-*s%s  %s\n", style.Dim, width, strings.ReplaceAll(key, "_", " "), style.Reset, styledValue(r[key])); err != nil {
+
+	for _, key := range orderedSnapshotSections(plan) {
+		items, ok := plan[key].([]any)
+		if !ok {
+			continue
+		}
+		if err := renderSnapshotSection(w, style, key, items); err != nil {
 			return err
 		}
 	}
@@ -352,6 +363,117 @@ func (l ResourceList) RenderStyled(w io.Writer, style *output.Style) error {
 			if _, err := fmt.Fprintf(w, "  %s%s%s\n", style.Dim, summarizeCounts(counts), style.Reset); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func renderScalarFields(w io.Writer, style *output.Style, r Resource, keys []string) error {
+	width := 0
+	for _, key := range keys {
+		if len(key) > width {
+			width = len(key)
+		}
+	}
+	for _, key := range keys {
+		if _, err := fmt.Fprintf(w, "%s%-*s%s  %s\n", style.Dim, width, strings.ReplaceAll(key, "_", " "), style.Reset, styledValue(r[key])); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func orderedScalarKeys(r Resource) []string {
+	keys := orderedKeys(r)
+	scalars := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if _, ok := r[key].([]any); ok {
+			continue
+		}
+		scalars = append(scalars, key)
+	}
+	return scalars
+}
+
+func orderedSnapshotSections(r Resource) []string {
+	priority := []string{"people", "jobs", "slots", "assignments", "routes", "inboxes"}
+	seen := map[string]bool{}
+	sections := make([]string, 0, len(priority))
+	for _, key := range priority {
+		if _, ok := r[key].([]any); ok {
+			sections = append(sections, key)
+			seen[key] = true
+		}
+	}
+
+	var rest []string
+	for key, value := range r {
+		if seen[key] {
+			continue
+		}
+		if _, ok := value.([]any); ok {
+			rest = append(rest, key)
+		}
+	}
+	sort.Strings(rest)
+	return append(sections, rest...)
+}
+
+func renderSnapshotSection(w io.Writer, style *output.Style, key string, items []any) error {
+	if _, err := fmt.Fprintf(w, "\n%s%s%s  %d items\n", style.Bold, strings.ReplaceAll(key, "_", " "), style.Reset, len(items)); err != nil {
+		return err
+	}
+	for _, raw := range items {
+		if err := renderSnapshotItem(w, style, resource(raw)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderSnapshotItem(w io.Writer, style *output.Style, item Resource) error {
+	title := resourceLabel(item)
+	id := idOf(item)
+	if id != "" && title != id {
+		title = id + "  " + title
+	}
+	if title == "" {
+		title = styledValue(item)
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s%s\n", style.Bold, title, style.Reset); err != nil {
+		return err
+	}
+
+	keys := orderedScalarKeys(item)
+	filtered := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if skipSnapshotField(key) {
+			continue
+		}
+		filtered = append(filtered, key)
+	}
+	return renderIndentedScalarFields(w, style, item, filtered, "    ")
+}
+
+func skipSnapshotField(key string) bool {
+	switch key {
+	case "id", "name", "display_name", "created_at", "updated_at", "plan_id", "space_person":
+		return true
+	default:
+		return false
+	}
+}
+
+func renderIndentedScalarFields(w io.Writer, style *output.Style, r Resource, keys []string, pad string) error {
+	width := 0
+	for _, key := range keys {
+		if len(key) > width {
+			width = len(key)
+		}
+	}
+	for _, key := range keys {
+		if _, err := fmt.Fprintf(w, "%s%s%-*s%s  %s\n", pad, style.Dim, width, strings.ReplaceAll(key, "_", " "), style.Reset, styledValue(r[key])); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -379,6 +501,9 @@ func orderedKeys(r Resource) []string {
 
 func resourceLabel(r Resource) string {
 	if name := stringValue(r["name"]); name != "" {
+		return name
+	}
+	if name := stringValue(r["display_name"]); name != "" {
 		return name
 	}
 	return idOf(r)
@@ -416,12 +541,38 @@ func styledValue(value any) string {
 		}
 		return typed
 	case map[string]any:
-		return summarizeCounts(typed)
+		return summarizeMap(typed)
 	case []any:
 		return fmt.Sprintf("%d items", len(typed))
 	default:
 		return fmt.Sprint(value)
 	}
+}
+
+func summarizeMap(values map[string]any) string {
+	if label := stringValue(values["label"]); label != "" {
+		parts := []string{label}
+		if startsAt := stringValue(values["starts_at"]); startsAt != "" {
+			parts = append(parts, "starts "+startsAt)
+		}
+		if endsAt := firstStringValue(values, "ends_at", "ends_at_earliest", "ends_at_latest"); endsAt != "" {
+			parts = append(parts, "ends "+endsAt)
+		}
+		if status := stringValue(values["status"]); status != "" {
+			parts = append(parts, status)
+		}
+		return strings.Join(parts, ", ")
+	}
+	return summarizeCounts(values)
+}
+
+func firstStringValue(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := stringValue(values[key]); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func summarizeCounts(counts map[string]any) string {
