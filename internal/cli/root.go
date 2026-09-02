@@ -59,8 +59,10 @@ func Execute() {
 	// structured shape every other failure has, so an agent parsing stdout
 	// never has to special-case "the CLI did not understand me".
 	var structured *output.Error
+	renderErr := err
 	if !errors.As(err, &structured) {
 		structured = output.ErrUsage(err.Error())
+		renderErr = structured
 	}
 
 	w := output.New(output.Options{
@@ -68,7 +70,7 @@ func Execute() {
 		Writer:  os.Stderr,
 		Verbose: flags.verbose,
 	})
-	_ = w.Err(structured)
+	_ = w.Err(renderErr)
 	os.Exit(output.ExitCodeFor(structured.Code))
 }
 
@@ -123,6 +125,7 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 		commands.NewAuthCmd(),
 		commands.NewProfileCmd(),
 		commands.NewDoctorCmd(),
+		commands.NewDefaultsCmd(),
 		commands.NewCommandsCmd(),
 		commands.NewTeamsCmd(),
 		commands.NewSpacesCmd(),

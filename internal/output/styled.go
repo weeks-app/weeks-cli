@@ -99,28 +99,36 @@ func renderStyled(w io.Writer, resp *Response, style *Style) error {
 	}
 
 	if len(resp.Breadcrumbs) > 0 {
-		if _, err := fmt.Fprintf(w, "\n%sNext%s\n", style.Dim, style.Reset); err != nil {
-			return err
-		}
-		// Commands differ in length, so the descriptions are padded into a
-		// column. Ragged right of a varying-width command is hard to scan,
-		// which defeats the point of listing them.
-		width := 0
-		for _, crumb := range resp.Breadcrumbs {
-			if len(crumb.Cmd) > width {
-				width = len(crumb.Cmd)
-			}
-		}
-		for _, crumb := range resp.Breadcrumbs {
-			padding := strings.Repeat(" ", width-len(crumb.Cmd))
-			if _, err := fmt.Fprintf(w, "  %s%s%s%s   %s%s%s\n",
-				style.Blue, crumb.Cmd, style.Reset, padding,
-				style.Dim, crumb.Description, style.Reset); err != nil {
-				return err
-			}
-		}
+		return renderBreadcrumbs(w, resp.Breadcrumbs, style)
 	}
 
+	return nil
+}
+
+func renderBreadcrumbs(w io.Writer, crumbs []Breadcrumb, style *Style) error {
+	if len(crumbs) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintf(w, "\n%sNext%s\n", style.Dim, style.Reset); err != nil {
+		return err
+	}
+	// Commands differ in length, so the descriptions are padded into a
+	// column. Ragged right of a varying-width command is hard to scan,
+	// which defeats the point of listing them.
+	width := 0
+	for _, crumb := range crumbs {
+		if len(crumb.Cmd) > width {
+			width = len(crumb.Cmd)
+		}
+	}
+	for _, crumb := range crumbs {
+		padding := strings.Repeat(" ", width-len(crumb.Cmd))
+		if _, err := fmt.Fprintf(w, "  %s%s%s%s   %s%s%s\n",
+			style.Blue, crumb.Cmd, style.Reset, padding,
+			style.Dim, crumb.Description, style.Reset); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -137,7 +145,7 @@ func renderErrorStyled(w io.Writer, resp *ErrorResponse, style *Style) error {
 			return err
 		}
 	}
-	return nil
+	return renderBreadcrumbs(w, resp.Breadcrumbs, style)
 }
 
 // renderValue prints normalized JSON-ish data as aligned lines.

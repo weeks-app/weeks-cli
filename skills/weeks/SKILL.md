@@ -80,8 +80,18 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 Failures use a different shape, and never set `ok` to true:
 
 ```json
-{"ok": false, "error": "what went wrong", "code": "auth_required", "hint": "what to do about it"}
+{
+  "ok": false,
+  "error": "--space is required",
+  "code": "usage",
+  "hint": "Usage error. Run the command with --help for details.",
+  "breadcrumbs": [
+    {"action": "defaults", "cmd": "weeks defaults set", "description": "Choose a default space for this folder"}
+  ]
+}
 ```
+
+Read `breadcrumbs` on failures too. They are follow-up commands, not decoration.
 
 Pass `--quiet` to get `data` alone, with no envelope, for piping into `jq`.
 `--ids-only` prints one id per line; `--count` prints the number of results.
@@ -157,6 +167,23 @@ weeks --profile acme <command>
 Credentials are stored per profile, so one profile can never read another's
 token. When work spans two teams, use two profiles — never one credential with
 wider access.
+
+## Folder defaults
+
+Use folder-local defaults when one working directory should keep using the same
+team and space:
+
+```bash
+weeks defaults show
+weeks defaults set
+weeks defaults set --team <team-id> --space <space-id>
+weeks defaults clear
+```
+
+`weeks defaults set` is selectable in a terminal. In JSON or other
+non-interactive runs, pass `--team`; pass `--space` too if plans should default
+without `--space`. Defaults are local to `./.weeks/`; `--global defaults set`
+and `WEEKS_CONFIG_DIR` storage are rejected.
 
 ## Basic reads
 

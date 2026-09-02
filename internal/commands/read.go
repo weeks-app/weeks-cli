@@ -64,7 +64,7 @@ func newTeamsViewCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app := appctx.From(cmd)
-			data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/teams/"+url.PathEscape(args[0]), nil)
+			data, err := apiGetJSON(cmd, app, "/api/v1/teams/"+url.PathEscape(args[0]), nil)
 			if err != nil {
 				return err
 			}
@@ -102,10 +102,16 @@ func newSpacesListCmd() *cobra.Command {
 			app := appctx.From(cmd)
 			resolvedTeamID, err := resolveTeamID(cmd, app, teamID)
 			if err != nil {
-				return err
+				if output.AsError(err).Code == output.CodeAuth {
+					return err
+				}
+				return output.WithErrorNext(err,
+					output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default team for this folder"},
+					output.Breadcrumb{Action: "teams", Cmd: "weeks teams list", Description: "List teams you can access"},
+				)
 			}
 
-			data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/teams/"+url.PathEscape(resolvedTeamID)+"/spaces", nil)
+			data, err := apiGetJSON(cmd, app, "/api/v1/teams/"+url.PathEscape(resolvedTeamID)+"/spaces", nil)
 			if err != nil {
 				return err
 			}
@@ -132,7 +138,7 @@ func newSpacesViewCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app := appctx.From(cmd)
 			query := includeQuery(include)
-			data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/spaces/"+url.PathEscape(args[0]), query)
+			data, err := apiGetJSON(cmd, app, "/api/v1/spaces/"+url.PathEscape(args[0]), query)
 			if err != nil {
 				return err
 			}
@@ -171,10 +177,17 @@ func newPlansListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
 			if spaceID == "" {
-				return output.ErrUsage("--space is required")
+				spaceID = currentDefaults(app).SpaceID
+			}
+			if spaceID == "" {
+				return output.WithErrorNext(
+					output.ErrUsage("--space is required"),
+					output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default space for this folder"},
+					output.Breadcrumb{Action: "spaces", Cmd: "weeks spaces list", Description: "List spaces you can access"},
+				)
 			}
 
-			data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/spaces/"+url.PathEscape(spaceID)+"/staffing/plans", nil)
+			data, err := apiGetJSON(cmd, app, "/api/v1/spaces/"+url.PathEscape(spaceID)+"/staffing/plans", nil)
 			if err != nil {
 				return err
 			}
@@ -200,7 +213,7 @@ func newPlansViewCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app := appctx.From(cmd)
-			data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/staffing/plans/"+url.PathEscape(args[0]), includeQuery(include))
+			data, err := apiGetJSON(cmd, app, "/api/v1/staffing/plans/"+url.PathEscape(args[0]), includeQuery(include))
 			if err != nil {
 				return err
 			}
@@ -222,8 +235,26 @@ func apiClient(app *appctx.App) *api.Client {
 	return &api.Client{BaseURL: app.BaseURL, Profile: app.Profile, Creds: app.Creds()}
 }
 
+func apiGetJSON(cmd *cobra.Command, app *appctx.App, path string, query url.Values) (any, error) {
+	data, err := apiClient(app).GetJSON(cmd.Context(), path, query)
+	if err != nil {
+		return nil, readErrorNext(err)
+	}
+	return data, nil
+}
+
+func readErrorNext(err error) error {
+	if output.AsError(err).Code != output.CodeAuth {
+		return err
+	}
+	return output.WithErrorNext(err,
+		output.Breadcrumb{Action: "login", Cmd: "weeks auth login", Description: "Sign in to this folder"},
+		output.Breadcrumb{Action: "setup", Cmd: "weeks setup", Description: "Check config and agent setup"},
+	)
+}
+
 func listTeams(cmd *cobra.Command, app *appctx.App) (ResourceList, error) {
-	data, err := apiClient(app).GetJSON(cmd.Context(), "/api/v1/teams", nil)
+	data, err := apiGetJSON(cmd, app, "/api/v1/teams", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -233,6 +264,9 @@ func listTeams(cmd *cobra.Command, app *appctx.App) (ResourceList, error) {
 func resolveTeamID(cmd *cobra.Command, app *appctx.App, explicit string) (string, error) {
 	if explicit != "" {
 		return explicit, nil
+	}
+	if teamID := currentDefaults(app).TeamID; teamID != "" {
+		return teamID, nil
 	}
 
 	teams, err := listTeams(cmd, app)

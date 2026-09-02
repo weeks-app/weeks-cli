@@ -8,6 +8,8 @@
 package output
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,13 +20,34 @@ import (
 // Core types, re-exported so command code imports one output package.
 type (
 	Response       = output.Response
-	ErrorResponse  = output.ErrorResponse
 	Breadcrumb     = output.Breadcrumb
 	Format         = output.Format
 	Options        = output.Options
 	Error          = output.Error
 	ResponseOption = output.ResponseOption
 )
+
+type ErrorResponse struct {
+	OK          bool           `json:"ok"`
+	Error       string         `json:"error"`
+	Code        string         `json:"code"`
+	Hint        string         `json:"hint,omitempty"`
+	Breadcrumbs []Breadcrumb   `json:"breadcrumbs,omitempty"`
+	Meta        map[string]any `json:"meta,omitempty"`
+}
+
+type BreadcrumbError struct {
+	Err         error
+	Breadcrumbs []Breadcrumb
+}
+
+func (e *BreadcrumbError) Error() string { return e.Err.Error() }
+
+func (e *BreadcrumbError) Unwrap() error { return e.Err }
+
+func WithErrorNext(err error, crumbs ...Breadcrumb) error {
+	return &BreadcrumbError{Err: err, Breadcrumbs: crumbs}
+}
 
 // Writer answers a command.
 //
@@ -75,19 +98,29 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 
 // Err writes a failure.
 func (w *Writer) Err(err error, opts ...ErrorResponseOption) error {
-	if !w.styled() {
-		return w.inner.Err(err, opts...)
-	}
 	structured := AsError(err)
 	resp := &ErrorResponse{OK: false, Error: structured.Message, Code: structured.Code, Hint: structured.Hint}
+	var withCrumbs *BreadcrumbError
+	if errors.As(err, &withCrumbs) {
+		resp.Breadcrumbs = append(resp.Breadcrumbs, withCrumbs.Breadcrumbs...)
+	}
 	for _, opt := range opts {
 		opt(resp)
+	}
+	if !w.styled() {
+		enc := json.NewEncoder(w.target)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
 	}
 	return renderErrorStyled(w.target, resp, NewStyle(w.target))
 }
 
 // ErrorResponseOption modifies an error response.
-type ErrorResponseOption = output.ErrorResponseOption
+type ErrorResponseOption func(*ErrorResponse)
+
+func WithErrorBreadcrumbs(b ...Breadcrumb) ErrorResponseOption {
+	return func(r *ErrorResponse) { r.Breadcrumbs = append(r.Breadcrumbs, b...) }
+}
 
 // Format modes.
 const (

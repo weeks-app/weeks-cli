@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	bcprofile "github.com/basecamp/cli/profile"
+
 	"github.com/weeks-app/weeks-cli/internal/appctx"
 	"github.com/weeks-app/weeks-cli/internal/auth"
 	"github.com/weeks-app/weeks-cli/internal/config"
@@ -135,6 +137,49 @@ func TestSpacesListRequiresTeamWhenMultipleTeamsAreAvailable(t *testing.T) {
 	}
 }
 
+func TestSpacesListUsesDefaultTeam(t *testing.T) {
+	var paths []string
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path != "/api/v1/teams/team_abc/spaces" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"space_abc","name":"Studio"}]`))
+	})
+	defer server.Close()
+	setReadTestDefaults(t, app, defaults{TeamID: "team_abc"})
+
+	cmd := NewSpacesCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Join(paths, ",") != "/api/v1/teams/team_abc/spaces" {
+		t.Fatalf("paths = %v", paths)
+	}
+}
+
+func TestPlansListUsesDefaultSpace(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/plans" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"plan_abc","name":"Launch","space_id":"space_abc"}]`))
+	})
+	defer server.Close()
+	setReadTestDefaults(t, app, defaults{TeamID: "team_abc", SpaceID: "space_abc"})
+
+	cmd := NewPlansCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+}
+
 func readTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *appctx.App) {
 	t.Helper()
 	t.Setenv(config.EnvNoKeyring, "1")
@@ -154,6 +199,7 @@ func readTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *
 		BaseURL:     server.URL,
 		ConfigDir:   config.Dir(),
 		ConfigScope: config.ScopeEnv,
+		Profiles:    bcprofile.NewStore(config.ProfilesPath()),
 	}
 	t.Cleanup(func() {
 		if t.Failed() {
@@ -162,6 +208,26 @@ func readTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *
 	})
 	readTestOutputs[app] = &out
 	return server, app
+}
+
+func setReadTestDefaults(t *testing.T, app *appctx.App, current defaults) {
+	t.Helper()
+	prof := &bcprofile.Profile{Name: "default", BaseURL: app.BaseURL}
+	if err := setProfileStringExtra(prof, "default_team_id", current.TeamID); err != nil {
+		t.Fatal(err)
+	}
+	if err := setProfileStringExtra(prof, "default_space_id", current.SpaceID); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Profiles.Create(prof); err != nil {
+		t.Fatal(err)
+	}
+	app.Profile = "default"
+	if creds, err := app.Creds().Load("", app.BaseURL); err == nil {
+		if err := app.Creds().Save(app.Profile, creds); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 var readTestOutputs = map[*appctx.App]*bytes.Buffer{}

@@ -143,6 +143,16 @@ weeks --global setup        # writes the user-wide profile and credential
 weeks --global teams list   # reads the global login
 ```
 
+Folder-local storage can also remember a default team and space for read
+commands. In a terminal, `weeks defaults set` lets you choose from the teams
+and spaces your login can see; in scripts, pass the ids explicitly.
+
+```bash
+weeks defaults set
+weeks defaults set --team team_abc --space space_abc
+weeks defaults show
+```
+
 ## Profiles are the team boundary
 
 Credentials are stored per profile inside the selected storage scope. One

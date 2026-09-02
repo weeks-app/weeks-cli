@@ -90,6 +90,27 @@ func TestErrorEnvelopeNeverClaimsSuccess(t *testing.T) {
 	}
 }
 
+func TestErrorEnvelopeCanCarryBreadcrumbs(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatJSON, Writer: &buf})
+
+	err := output.WithErrorNext(output.ErrUsage("--space is required"), output.Breadcrumb{
+		Action: "defaults", Cmd: "weeks defaults set", Description: "Choose defaults",
+	})
+	if writeErr := w.Err(err); writeErr != nil {
+		t.Fatalf("Err: %v", writeErr)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("output was not JSON: %v", err)
+	}
+	crumbs, ok := got["breadcrumbs"].([]any)
+	if !ok || len(crumbs) != 1 {
+		t.Fatalf("breadcrumbs = %v, want one entry", got["breadcrumbs"])
+	}
+}
+
 func TestConfirmationRequiredHasItsOwnExitCode(t *testing.T) {
 	err := output.ErrConfirmationRequired("gated")
 
@@ -197,6 +218,25 @@ func TestStyledErrorShowsCodeAndHint(t *testing.T) {
 	// The code is what someone quotes when they ask about it, and the hint is
 	// what they do about it; neither may be dropped just because it is pretty.
 	for _, want := range []string{"Dana already works that slot", output.CodeConfirmationRequired, "--confirm"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("styled error is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestStyledErrorShowsBreadcrumbs(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+
+	err := output.WithErrorNext(output.ErrUsage("--team is required"), output.Breadcrumb{
+		Action: "defaults", Cmd: "weeks defaults set", Description: "Choose defaults",
+	})
+	if writeErr := w.Err(err); writeErr != nil {
+		t.Fatalf("Err: %v", writeErr)
+	}
+
+	got := buf.String()
+	for _, want := range []string{"Next", "weeks defaults set", "Choose defaults"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("styled error is missing %q:\n%s", want, got)
 		}
