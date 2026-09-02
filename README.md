@@ -8,9 +8,10 @@ It is designed to be driven by an AI agent as readily as by a person: every
 command answers with the same JSON envelope, every answer suggests what to do
 next, and the agent skill that teaches the CLI ships inside the binary.
 
-> **Status: bootstrap.** Auth, discovery, diagnostics, and the output contract
-> are in place. The scheduling commands themselves — plans, slots, people,
-> jobs, rollups, overlaps — are the next bean (`weeks-app-d3ya`).
+> **Status: early.** Auth, discovery, diagnostics, setup, the output contract,
+> and basic reads for teams, spaces, and plans are in place. Most scheduling
+> commands — including writes, slots, people, jobs, rollups, and overlaps —
+> have not shipped yet.
 
 ## Install
 
@@ -41,17 +42,46 @@ go install github.com/weeks-app/weeks-cli/cmd/weeks@latest
 ## Getting started
 
 ```bash
-weeks profile set acme --base-url https://weeks.app --default
-weeks auth login
+weeks setup --profile default
 weeks doctor --json
 ```
 
-`weeks auth login` runs the OAuth device flow: it prints a short code and a
-URL, you approve it in any browser on any machine, and the CLI picks up the
-token. Nothing has to redirect back to the host running the command — which is
-what makes it work over SSH, in a container, or in an agent's pane. Where there
-is a desktop, `weeks auth login --browser` uses the authorization code grant
-with PKCE instead.
+In a terminal, `weeks setup` creates or selects the default profile, installs
+the embedded skill for Claude Code, and starts the OAuth device flow. It prints
+a short code and a URL; approve it in any browser on any machine and the CLI
+picks up the token. Nothing has to redirect back to the host running the
+command, which is what makes it work over SSH, in a container, or in an agent's
+pane.
+
+Use `--base-url` or `--client-id` for a local or self-hosted installation, and
+`--skip-login` when setup should only write the profile and skill. In JSON or
+other non-interactive runs, setup starts login only with `--login`. Where there
+is a desktop, `weeks auth login --browser` remains available for the
+authorization code grant with PKCE.
+
+## Basic reads
+
+```bash
+weeks teams list
+weeks teams view <team-id>
+
+weeks spaces list
+weeks spaces list --team <team-id>
+weeks spaces view <space-id> --include overview
+
+weeks plans list --space <space-id>
+weeks plans view <plan-id> --include snapshot
+```
+
+Use the typed IDs returned by the API, such as `team_...`, `space_...`, and
+`plan_...`. `weeks spaces list` can omit `--team` only when the active profile
+can access exactly one team; `weeks plans list` always requires `--space`.
+`view` returns one API resource, and JSON output preserves the resource shape
+returned by the server.
+
+Include scopes are passed to the API. `overview` adds counts, people, and plans
+to a space; `snapshot` adds the plan's people, jobs, inboxes, slots,
+assignments, routes, and related planning hints.
 
 ## The contract
 
