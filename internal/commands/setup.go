@@ -36,7 +36,8 @@ func NewSetupCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.profile, "profile", "default", "Profile name to create or select")
 	cmd.Flags().StringVar(&opts.baseURL, "base-url", "", "weeks installation this profile targets")
 	cmd.Flags().StringVar(&opts.clientID, "client-id", "", "OAuth client id for this installation")
-	cmd.Flags().BoolVar(&opts.login, "login", false, "Sign in after saving the profile")
+	cmd.Flags().BoolVar(&opts.login, "login", false, "Sign in after saving the profile, even when output is not interactive")
+	cmd.Flags().BoolVar(&opts.skipLogin, "skip-login", false, "Do not sign in during interactive setup")
 	cmd.Flags().BoolVar(&opts.skipProfile, "skip-profile", false, "Do not create or update a profile")
 	cmd.Flags().BoolVar(&opts.skipSkill, "skip-skill", false, "Do not install the agent skill")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "Overwrite existing setup-owned files")
@@ -50,6 +51,7 @@ type setupOptions struct {
 	baseURL     string
 	clientID    string
 	login       bool
+	skipLogin   bool
 	skipProfile bool
 	skipSkill   bool
 	force       bool
@@ -81,13 +83,10 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 			return err
 		}
 		result["profile"] = profile
-		crumbs = append(crumbs, output.Breadcrumb{
-			Action: "teams", Cmd: "weeks teams list --profile " + profile, Description: "List teams this profile can access",
-		})
 	}
 
 	if !opts.skipSkill {
-		install, err := installClaudeSkill(opts.force)
+		install, err := installClaudeSkill(opts.force, true)
 		if err != nil {
 			return err
 		}
@@ -95,7 +94,12 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 		result["skill_updated"] = install.updated
 	}
 
-	if opts.login {
+	shouldLogin := opts.login || (app.Interactive && !opts.skipLogin)
+	if opts.login && opts.skipLogin {
+		return output.ErrUsage("--login and --skip-login cannot be used together")
+	}
+
+	if shouldLogin {
 		loginApp := &appctx.App{
 			Out:         app.Out,
 			Profile:     profile,
@@ -125,6 +129,9 @@ func runSetup(cmd *cobra.Command, opts setupOptions) error {
 			return fmt.Errorf("could not store the credential: %w", err)
 		}
 		result["authenticated"] = true
+		crumbs = append(crumbs, output.Breadcrumb{
+			Action: "teams", Cmd: "weeks teams list --profile " + profile, Description: "List teams this profile can access",
+		})
 	} else {
 		loginCmd := "weeks auth login"
 		if profile != "" {
@@ -175,7 +182,7 @@ func newSetupClaudeCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
 
-			install, err := installClaudeSkill(force)
+			install, err := installClaudeSkill(force, false)
 			if err != nil {
 				return err
 			}
@@ -210,7 +217,7 @@ type skillInstall struct {
 	updated bool
 }
 
-func installClaudeSkill(force bool) (*skillInstall, error) {
+func installClaudeSkill(force bool, keepExisting bool) (*skillInstall, error) {
 	dir := harness.SkillDir()
 	if dir == "" {
 		return nil, output.ErrUsage("cannot locate a home directory to install into")
@@ -218,6 +225,9 @@ func installClaudeSkill(force bool) (*skillInstall, error) {
 
 	target := filepath.Join(dir, "SKILL.md")
 	existed := fileExists(target)
+	if existed && keepExisting && !force {
+		return &skillInstall{path: target, updated: false}, nil
+	}
 	if existed && !force {
 		return nil, &output.Error{
 			Code:    output.CodeUsage,

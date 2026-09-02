@@ -33,9 +33,11 @@ For a new machine, run:
 weeks setup --profile default
 ```
 
-It creates or updates the default profile and installs this embedded skill for
-Claude Code. Add `--base-url`, `--client-id`, or `--login` when configuring a
-non-hosted installation or when you want setup to run the device login flow too.
+In a terminal, it creates or selects the default profile, installs this embedded
+skill for Claude Code, and starts the device login flow. Add `--base-url` or
+`--client-id` when configuring a non-hosted installation. Use `--skip-login`
+when you only want setup to write profile and skill files. In JSON or other
+non-interactive runs, setup never starts login unless you pass `--login`.
 
 ## Two shapes, and which one you get
 
