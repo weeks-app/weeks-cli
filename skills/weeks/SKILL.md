@@ -10,9 +10,9 @@ built to be driven by an agent: every command answers with the same JSON
 envelope, and every answer suggests what to do next.
 
 **This binary is early.** Auth, discovery, diagnostics, and basic read commands
-for spaces and plans work. Most scheduling commands do not exist yet. `weeks
-commands --json` is always the truth about what this binary can do — trust it
-over any example in this document.
+for teams, spaces, and plans work. Most scheduling commands do not exist yet.
+`weeks commands --json` is always the truth about what this binary can do —
+trust it over any example in this document.
 
 ## Before anything else
 
