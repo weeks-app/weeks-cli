@@ -15,6 +15,12 @@ import (
 func TestOKEnvelopeShape(t *testing.T) {
 	var buf bytes.Buffer
 	w := output.New(output.Options{Format: output.FormatJSON, Writer: &buf})
+	w.SetDefaultContext(map[string]any{
+		"profile":      "default",
+		"config_scope": "local",
+		"config_dir":   "/work/.weeks",
+		"base_url":     "https://weeks.app",
+	})
 
 	err := w.OK(map[string]any{"id": 1},
 		output.WithSummary("One thing."),
@@ -34,6 +40,13 @@ func TestOKEnvelopeShape(t *testing.T) {
 	}
 	if got["summary"] != "One thing." {
 		t.Errorf("summary = %v", got["summary"])
+	}
+	context, ok := got["context"].(map[string]any)
+	if !ok {
+		t.Fatalf("context = %v, want object", got["context"])
+	}
+	if context["profile"] != "default" || context["config_scope"] != "local" {
+		t.Errorf("context = %v", context)
 	}
 	crumbs, ok := got["breadcrumbs"].([]any)
 	if !ok || len(crumbs) != 1 {
@@ -90,6 +103,54 @@ func TestErrorEnvelopeNeverClaimsSuccess(t *testing.T) {
 	}
 }
 
+func TestErrorEnvelopeCanCarryBreadcrumbs(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatJSON, Writer: &buf})
+	w.SetDefaultContext(map[string]any{"profile": "acme", "config_scope": "global"})
+
+	err := output.WithErrorNext(output.ErrUsage("--space is required"), output.Breadcrumb{
+		Action: "defaults", Cmd: "weeks defaults set", Description: "Choose defaults",
+	})
+	if writeErr := w.Err(err); writeErr != nil {
+		t.Fatalf("Err: %v", writeErr)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("output was not JSON: %v", err)
+	}
+	crumbs, ok := got["breadcrumbs"].([]any)
+	if !ok || len(crumbs) != 1 {
+		t.Fatalf("breadcrumbs = %v, want one entry", got["breadcrumbs"])
+	}
+	context, ok := got["context"].(map[string]any)
+	if !ok || context["profile"] != "acme" || context["config_scope"] != "global" {
+		t.Fatalf("context = %v", got["context"])
+	}
+}
+
+func TestMarkdownErrorIsNotJSON(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatMarkdown, Writer: &buf})
+
+	err := output.WithErrorNext(output.ErrUsage("--space is required"), output.Breadcrumb{
+		Action: "spaces", Cmd: "weeks spaces list", Description: "List spaces",
+	})
+	if writeErr := w.Err(err); writeErr != nil {
+		t.Fatalf("Err: %v", writeErr)
+	}
+
+	got := buf.String()
+	if strings.Contains(got, `"ok"`) {
+		t.Errorf("markdown error leaked JSON:\n%s", got)
+	}
+	for _, want := range []string{"**Error:** --space is required", "`usage`", "**Next**", "`weeks spaces list`"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("markdown error is missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestConfirmationRequiredHasItsOwnExitCode(t *testing.T) {
 	err := output.ErrConfirmationRequired("gated")
 
@@ -143,6 +204,12 @@ func TestExitCodeOfNilIsSuccess(t *testing.T) {
 func TestStyledOutputIsNotJSON(t *testing.T) {
 	var buf bytes.Buffer
 	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+	w.SetDefaultContext(map[string]any{
+		"profile":      "default",
+		"config_scope": "local",
+		"config_dir":   "/work/.weeks",
+		"base_url":     "https://weeks.app",
+	})
 
 	if err := w.OK(map[string]any{"grant": "device_code"},
 		output.WithSummary("Signed in to https://weeks.app."),
@@ -157,7 +224,7 @@ func TestStyledOutputIsNotJSON(t *testing.T) {
 	if strings.Contains(got, `"ok"`) {
 		t.Errorf("styled output leaked the envelope:\n%s", got)
 	}
-	for _, want := range []string{"Signed in to https://weeks.app.", "grant", "device_code", "weeks auth status"} {
+	for _, want := range []string{"Signed in to https://weeks.app.", "Using", "profile", "default", "config store", "local (/work/.weeks)", "grant", "device_code", "weeks auth status"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("styled output is missing %q:\n%s", want, got)
 		}
@@ -197,6 +264,25 @@ func TestStyledErrorShowsCodeAndHint(t *testing.T) {
 	// The code is what someone quotes when they ask about it, and the hint is
 	// what they do about it; neither may be dropped just because it is pretty.
 	for _, want := range []string{"Dana already works that slot", output.CodeConfirmationRequired, "--confirm"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("styled error is missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestStyledErrorShowsBreadcrumbs(t *testing.T) {
+	var buf bytes.Buffer
+	w := output.New(output.Options{Format: output.FormatStyled, Writer: &buf})
+
+	err := output.WithErrorNext(output.ErrUsage("--team is required"), output.Breadcrumb{
+		Action: "defaults", Cmd: "weeks defaults set", Description: "Choose defaults",
+	})
+	if writeErr := w.Err(err); writeErr != nil {
+		t.Fatalf("Err: %v", writeErr)
+	}
+
+	got := buf.String()
+	for _, want := range []string{"Next", "weeks defaults set", "Choose defaults"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("styled error is missing %q:\n%s", want, got)
 		}

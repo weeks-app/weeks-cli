@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/weeks-app/weeks-cli/internal/appctx"
+	"github.com/weeks-app/weeks-cli/internal/auth"
 	"github.com/weeks-app/weeks-cli/internal/config"
 )
 
@@ -29,5 +30,29 @@ func TestCheckCredentialsFailsOnUnreadableStoredCredentials(t *testing.T) {
 	}
 	if !strings.Contains(check.Message, "stored credentials are unreadable") {
 		t.Fatalf("message = %q, want unreadable credential detail", check.Message)
+	}
+}
+
+func TestCheckCredentialsReportsFilePath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(config.EnvNoKeyring, "1")
+
+	baseURL := "http://localhost:3000"
+	store := auth.NewFileStore(dir)
+	if err := store.Save("", &auth.Credentials{AccessToken: "tok", BaseURL: baseURL}); err != nil {
+		t.Fatal(err)
+	}
+
+	check, summary := checkCredentials(&appctx.App{
+		BaseURL:     baseURL,
+		ConfigDir:   dir,
+		ConfigScope: config.ScopeLocal,
+	})
+	if summary == nil {
+		t.Fatal("summary = nil, want credential summary")
+	}
+	want := filepath.Join(dir, "credentials.json")
+	if !strings.Contains(check.Message, want) {
+		t.Fatalf("message = %q, want %q", check.Message, want)
 	}
 }

@@ -53,12 +53,42 @@ const EnvNoKeyring = "WEEKS_NO_KEYRING"
 // built-in default cannot be right for every installation.
 const EnvClientID = "WEEKS_CLIENT_ID"
 
-// Dir returns the config directory, creating nothing. Order: WEEKS_CONFIG_DIR,
-// then $XDG_CONFIG_HOME/weeks, then ~/.config/weeks.
+const (
+	ScopeLocal  = "local"
+	ScopeGlobal = "global"
+	ScopeEnv    = "env"
+)
+
+// Dir returns the default config directory, creating nothing. Order:
+// WEEKS_CONFIG_DIR, then ./.weeks. Use ResolveDir(true) for the global path.
 func Dir() string {
+	dir, _ := ResolveDir(false)
+	return dir
+}
+
+// ResolveDir returns the config directory and scope for one invocation.
+func ResolveDir(useGlobal bool) (string, string) {
 	if dir := os.Getenv(EnvConfigDir); dir != "" {
-		return dir
+		return dir, ScopeEnv
 	}
+	if useGlobal {
+		return GlobalDir(), ScopeGlobal
+	}
+	return LocalDir(), ScopeLocal
+}
+
+// LocalDir returns the current-folder config directory. This is the default so
+// agents working in different folders do not share credentials by accident.
+func LocalDir() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ".weeks"
+	}
+	return filepath.Join(cwd, ".weeks")
+}
+
+// GlobalDir returns the user-wide config directory.
+func GlobalDir() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "weeks")
 	}
@@ -67,7 +97,7 @@ func Dir() string {
 		// No home directory is recoverable: fall back to the working
 		// directory rather than failing a command that may not need config
 		// at all (`weeks --help`, `weeks commands --json`).
-		return ".weeks"
+		return ".weeks-global"
 	}
 	return filepath.Join(home, ".config", "weeks")
 }
@@ -77,6 +107,9 @@ func Path(name string) string { return filepath.Join(Dir(), name) }
 
 // ProfilesPath is where named profiles live.
 func ProfilesPath() string { return Path("config.json") }
+
+// ProfilesPathIn is where named profiles live inside dir.
+func ProfilesPathIn(dir string) string { return filepath.Join(dir, "config.json") }
 
 // BaseURLFromEnv returns the base URL override from the environment, if any.
 func BaseURLFromEnv() string { return os.Getenv(EnvBaseURL) }

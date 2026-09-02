@@ -8,6 +8,8 @@
 package output
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,13 +20,35 @@ import (
 // Core types, re-exported so command code imports one output package.
 type (
 	Response       = output.Response
-	ErrorResponse  = output.ErrorResponse
 	Breadcrumb     = output.Breadcrumb
 	Format         = output.Format
 	Options        = output.Options
 	Error          = output.Error
 	ResponseOption = output.ResponseOption
 )
+
+type ErrorResponse struct {
+	OK          bool           `json:"ok"`
+	Error       string         `json:"error"`
+	Code        string         `json:"code"`
+	Hint        string         `json:"hint,omitempty"`
+	Breadcrumbs []Breadcrumb   `json:"breadcrumbs,omitempty"`
+	Context     map[string]any `json:"context,omitempty"`
+	Meta        map[string]any `json:"meta,omitempty"`
+}
+
+type BreadcrumbError struct {
+	Err         error
+	Breadcrumbs []Breadcrumb
+}
+
+func (e *BreadcrumbError) Error() string { return e.Err.Error() }
+
+func (e *BreadcrumbError) Unwrap() error { return e.Err }
+
+func WithErrorNext(err error, crumbs ...Breadcrumb) error {
+	return &BreadcrumbError{Err: err, Breadcrumbs: crumbs}
+}
 
 // Writer answers a command.
 //
@@ -36,9 +60,10 @@ type (
 // Everything else is delegated unchanged, so the envelope an agent reads comes
 // from the toolkit in every mode where an agent is reading.
 type Writer struct {
-	inner  *output.Writer
-	opts   Options
-	target io.Writer
+	inner          *output.Writer
+	opts           Options
+	target         io.Writer
+	defaultContext map[string]any
 }
 
 // New creates a writer.
@@ -47,6 +72,11 @@ func New(opts Options) *Writer {
 		opts.Writer = os.Stdout
 	}
 	return &Writer{inner: output.New(opts), opts: opts, target: opts.Writer}
+}
+
+// SetDefaultContext adds invocation facts every envelope should carry.
+func (w *Writer) SetDefaultContext(context map[string]any) {
+	w.defaultContext = context
 }
 
 // DefaultOptions returns options for standard output.
@@ -63,6 +93,7 @@ func (w *Writer) styled() bool {
 
 // OK writes a success response.
 func (w *Writer) OK(data any, opts ...ResponseOption) error {
+	opts = appendDefaultContext(opts, w.defaultContext)
 	if !w.styled() {
 		return w.inner.OK(data, opts...)
 	}
@@ -75,19 +106,77 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 
 // Err writes a failure.
 func (w *Writer) Err(err error, opts ...ErrorResponseOption) error {
-	if !w.styled() {
-		return w.inner.Err(err, opts...)
-	}
 	structured := AsError(err)
 	resp := &ErrorResponse{OK: false, Error: structured.Message, Code: structured.Code, Hint: structured.Hint}
+	if len(w.defaultContext) > 0 {
+		resp.Context = cloneContext(w.defaultContext)
+	}
+	var withCrumbs *BreadcrumbError
+	if errors.As(err, &withCrumbs) {
+		resp.Breadcrumbs = append(resp.Breadcrumbs, withCrumbs.Breadcrumbs...)
+	}
 	for _, opt := range opts {
 		opt(resp)
+	}
+	if w.opts.Format == FormatMarkdown {
+		return renderErrorMarkdown(w.target, resp)
+	}
+	if !w.styled() {
+		enc := json.NewEncoder(w.target)
+		enc.SetIndent("", "  ")
+		return enc.Encode(resp)
 	}
 	return renderErrorStyled(w.target, resp, NewStyle(w.target))
 }
 
 // ErrorResponseOption modifies an error response.
-type ErrorResponseOption = output.ErrorResponseOption
+type ErrorResponseOption func(*ErrorResponse)
+
+func WithErrorBreadcrumbs(b ...Breadcrumb) ErrorResponseOption {
+	return func(r *ErrorResponse) { r.Breadcrumbs = append(r.Breadcrumbs, b...) }
+}
+
+func appendDefaultContext(opts []ResponseOption, context map[string]any) []ResponseOption {
+	if len(context) == 0 {
+		return opts
+	}
+	withContext := make([]ResponseOption, 0, len(context)+len(opts))
+	for key, value := range context {
+		withContext = append(withContext, WithContext(key, value))
+	}
+	return append(withContext, opts...)
+}
+
+func cloneContext(context map[string]any) map[string]any {
+	cloned := make(map[string]any, len(context))
+	for key, value := range context {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func renderErrorMarkdown(w io.Writer, resp *ErrorResponse) error {
+	if _, err := fmt.Fprintf(w, "**Error:** %s\n\n`%s`\n", resp.Error, resp.Code); err != nil {
+		return err
+	}
+	if resp.Hint != "" {
+		if _, err := fmt.Fprintf(w, "\n%s\n", resp.Hint); err != nil {
+			return err
+		}
+	}
+	if len(resp.Breadcrumbs) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "\n**Next**"); err != nil {
+		return err
+	}
+	for _, crumb := range resp.Breadcrumbs {
+		if _, err := fmt.Fprintf(w, "- `%s` - %s\n", crumb.Cmd, crumb.Description); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // Format modes.
 const (

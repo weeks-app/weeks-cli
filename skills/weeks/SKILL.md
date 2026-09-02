@@ -30,11 +30,16 @@ entry.
 For a new machine, run:
 
 ```bash
-weeks setup --profile default
+weeks setup
 ```
 
-In a terminal, it creates or selects the default profile, installs this embedded
-skill for Claude Code, and starts the device login flow. Add `--base-url` or
+In a terminal, it asks where to save the profile and credential. The default is
+the current folder's `./.weeks/` directory; pressing enter chooses that. Local
+credentials are file-backed in `./.weeks/credentials.json` so another folder's
+agent cannot silently reuse them. It also installs this embedded skill for
+Claude Code and starts the device login flow. Add root-position `--global` only
+when you deliberately want the user-wide config and keyring-preferred
+credentials, for example `weeks --global setup`. Add `--base-url` or
 `--client-id` when configuring a non-hosted installation. Use `--skip-login`
 when you only want setup to write profile and skill files. In JSON or other
 non-interactive runs, setup never starts login unless you pass `--login`.
@@ -59,6 +64,12 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 {
   "ok": true,
   "data": {},
+  "context": {
+    "profile": "default",
+    "config_scope": "local",
+    "config_dir": "/path/to/project/.weeks",
+    "base_url": "https://weeks.app"
+  },
   "summary": "One sentence a human can read.",
   "breadcrumbs": [
     {"action": "verify", "cmd": "weeks auth status", "description": "Confirm the credential works"}
@@ -68,6 +79,8 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 
 - **`ok`** — whether the command succeeded. Check this first.
 - **`data`** — the payload. An object for one thing, an array for a listing.
+- **`context`** — active invocation facts: profile, config store, config
+  directory, and base URL. Pretty output prints the same facts under `Using`.
 - **`summary`** — one sentence. Use it verbatim when reporting back.
 - **`breadcrumbs`** — the commands that usually come next. They are the cheapest
   way to plan: follow one rather than guessing at a command that may not exist.
@@ -75,8 +88,18 @@ Every command emits this on stdout when stdout is not a terminal, or whenever
 Failures use a different shape, and never set `ok` to true:
 
 ```json
-{"ok": false, "error": "what went wrong", "code": "auth_required", "hint": "what to do about it"}
+{
+  "ok": false,
+  "error": "--space is required",
+  "code": "usage",
+  "hint": "Usage error. Run the command with --help for details.",
+  "breadcrumbs": [
+    {"action": "defaults", "cmd": "weeks defaults set", "description": "Choose a default space for this folder"}
+  ]
+}
 ```
+
+Read `breadcrumbs` on failures too. They are follow-up commands, not decoration.
 
 Pass `--quiet` to get `data` alone, with no envelope, for piping into `jq`.
 `--ids-only` prints one id per line; `--count` prints the number of results.
@@ -152,6 +175,23 @@ weeks --profile acme <command>
 Credentials are stored per profile, so one profile can never read another's
 token. When work spans two teams, use two profiles — never one credential with
 wider access.
+
+## Folder defaults
+
+Use folder-local defaults when one working directory should keep using the same
+team and space:
+
+```bash
+weeks defaults show
+weeks defaults set
+weeks defaults set --team <team-id> --space <space-id>
+weeks defaults clear
+```
+
+`weeks defaults set` is selectable in a terminal. In JSON or other
+non-interactive runs, pass `--team`; pass `--space` too if plans should default
+without `--space`. Defaults are local to `./.weeks/`; `--global defaults set`
+and `WEEKS_CONFIG_DIR` storage are rejected.
 
 ## Basic reads
 

@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/weeks-app/weeks-cli/internal/auth"
+	"github.com/weeks-app/weeks-cli/internal/config"
 	"github.com/weeks-app/weeks-cli/internal/output"
 )
 
@@ -31,6 +32,12 @@ type App struct {
 
 	// ClientID is the OAuth client the login flows authenticate as.
 	ClientID string
+
+	// ConfigDir is where profiles and file-backed credentials are read/written.
+	ConfigDir string
+
+	// ConfigScope names how ConfigDir was selected: local, global, or env.
+	ConfigScope string
 
 	// Agent is true when the caller asked for the agent-shaped surface
 	// (--agent, or --json): help becomes JSON and prose becomes data.
@@ -63,7 +70,13 @@ type App struct {
 // most of the machines an agent runs on. Nothing pays for the keyring until
 // something actually needs a token.
 func (a *App) Creds() *auth.Store {
-	a.credsOnce.Do(func() { a.creds = auth.NewStore() })
+	a.credsOnce.Do(func() {
+		if a.ConfigScope == config.ScopeLocal || a.ConfigScope == config.ScopeEnv {
+			a.creds = auth.NewFileStore(a.ConfigDir)
+		} else {
+			a.creds = auth.NewStore(a.ConfigDir)
+		}
+	})
 	return a.creds
 }
 
@@ -81,8 +94,14 @@ func With(ctx context.Context, app *App) context.Context {
 // zero value keeps a mis-wired command printing a real error instead of
 // panicking on a nil writer.
 func From(cmd *cobra.Command) *App {
-	if app, ok := cmd.Context().Value(key{}).(*App); ok && app != nil {
+	if app, ok := Lookup(cmd.Context()); ok {
 		return app
 	}
 	return &App{Out: output.New(output.DefaultOptions())}
+}
+
+// Lookup returns the App carried by ctx, if root setup has installed one.
+func Lookup(ctx context.Context) (*App, bool) {
+	app, ok := ctx.Value(key{}).(*App)
+	return app, ok && app != nil
 }

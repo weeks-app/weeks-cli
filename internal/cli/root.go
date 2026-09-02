@@ -2,11 +2,14 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	bcprofile "github.com/basecamp/cli/profile"
 	"github.com/spf13/cobra"
@@ -36,6 +39,7 @@ type rootFlags struct {
 	confirm  bool
 	profile  string
 	baseURL  string
+	global   bool
 }
 
 // Execute builds the command tree, runs it, and exits with the code the
@@ -58,8 +62,10 @@ func Execute() {
 	// structured shape every other failure has, so an agent parsing stdout
 	// never has to special-case "the CLI did not understand me".
 	var structured *output.Error
+	renderErr := err
 	if !errors.As(err, &structured) {
 		structured = output.ErrUsage(err.Error())
+		renderErr = structured
 	}
 
 	w := output.New(output.Options{
@@ -67,7 +73,10 @@ func Execute() {
 		Writer:  os.Stderr,
 		Verbose: flags.verbose,
 	})
-	_ = w.Err(structured)
+	if app, ok := appctx.Lookup(root.Context()); ok {
+		w.SetDefaultContext(invocationContext(app))
+	}
+	_ = w.Err(renderErr)
 	os.Exit(output.ExitCodeFor(structured.Code))
 }
 
@@ -90,11 +99,15 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 		// Resolving the profile, base URL, and credential store once here is
 		// what lets every leaf command be about its own subject.
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := maybePromptSetupStore(cmd, flags); err != nil {
+				return err
+			}
 			app, err := buildApp(flags)
 			if err != nil {
 				return err
 			}
 			cmd.SetContext(appctx.With(cmd.Context(), app))
+			cmd.Root().SetContext(appctx.With(cmd.Root().Context(), app))
 			return nil
 		},
 	}
@@ -111,6 +124,7 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 	pf.BoolVar(&flags.confirm, "confirm", false, "Proceed past a confirmation_required gate")
 	pf.StringVar(&flags.profile, "profile", "", "Named profile to act as (default: the configured one)")
 	pf.StringVar(&flags.baseURL, "base-url", "", "weeks installation to talk to")
+	pf.BoolVar(&flags.global, "global", false, "Use the global config and credential store instead of this folder's .weeks directory")
 
 	// --help --agent has to be answered before Cobra prints its own help,
 	// which is why help is a function on the command rather than a flag we
@@ -121,6 +135,7 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 		commands.NewAuthCmd(),
 		commands.NewProfileCmd(),
 		commands.NewDoctorCmd(),
+		commands.NewDefaultsCmd(),
 		commands.NewCommandsCmd(),
 		commands.NewTeamsCmd(),
 		commands.NewSpacesCmd(),
@@ -136,7 +151,8 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 // buildApp resolves everything a command needs from flags, environment, and
 // stored config.
 func buildApp(flags *rootFlags) (*appctx.App, error) {
-	profiles := bcprofile.NewStore(config.ProfilesPath())
+	configDir, configScope := config.ResolveDir(flags.global)
+	profiles := bcprofile.NewStore(config.ProfilesPathIn(configDir))
 
 	known, configuredDefault, err := profiles.List()
 	if err != nil {
@@ -171,21 +187,26 @@ func buildApp(flags *rootFlags) (*appctx.App, error) {
 		clientID = DefaultClientID
 	}
 
-	return &appctx.App{
-		Out: output.New(output.Options{
-			Format:  resolveFormat(flags),
-			Writer:  os.Stdout,
-			Verbose: flags.verbose,
-		}),
+	out := output.New(output.Options{
+		Format:  resolveFormat(flags),
+		Writer:  os.Stdout,
+		Verbose: flags.verbose,
+	})
+	app := &appctx.App{
+		Out:         out,
 		Profile:     name,
 		BaseURL:     baseURL,
 		ClientID:    clientID,
+		ConfigDir:   configDir,
+		ConfigScope: configScope,
 		Agent:       flags.agent || flags.json,
 		Interactive: interactive(flags),
 		Confirm:     flags.confirm,
 		Verbose:     flags.verbose,
 		Profiles:    profiles,
-	}, nil
+	}
+	out.SetDefaultContext(invocationContext(app))
+	return app, nil
 }
 
 func profileClientID(prof *bcprofile.Profile) string {
@@ -203,4 +224,64 @@ func profileClientID(prof *bcprofile.Profile) string {
 		return ""
 	}
 	return clientID
+}
+
+func invocationContext(app *appctx.App) map[string]any {
+	return map[string]any{
+		"profile":      emptyStringNil(app.Profile),
+		"base_url":     app.BaseURL,
+		"config_scope": app.ConfigScope,
+		"config_dir":   app.ConfigDir,
+	}
+}
+
+func emptyStringNil(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
+}
+
+func maybePromptSetupStore(cmd *cobra.Command, flags *rootFlags) error {
+	if flags.global || os.Getenv(config.EnvConfigDir) != "" || !interactive(flags) {
+		return nil
+	}
+	if cmd.CommandPath() != "weeks setup" {
+		return nil
+	}
+
+	choice, err := promptSetupStore(cmd.InOrStdin(), cmd.ErrOrStderr())
+	if err != nil {
+		return err
+	}
+	flags.global = choice == config.ScopeGlobal
+	return nil
+}
+
+func promptSetupStore(in io.Reader, errOut io.Writer) (string, error) {
+	if _, err := fmt.Fprintf(errOut, "Where should weeks save this profile and credential?\n"); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprintf(errOut, "  1. Local folder ./.weeks (default)\n"); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprintf(errOut, "  2. Global user store\n"); err != nil {
+		return "", err
+	}
+	if _, err := fmt.Fprintf(errOut, "Choose 1 or 2: "); err != nil {
+		return "", err
+	}
+
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && line == "" {
+		return "", err
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "", "1", "l", "local":
+		return config.ScopeLocal, nil
+	case "2", "g", "global":
+		return config.ScopeGlobal, nil
+	default:
+		return "", output.ErrUsage("choose local or global storage")
+	}
 }
