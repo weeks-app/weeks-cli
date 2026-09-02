@@ -222,7 +222,7 @@ func (s *Store) withFileLock(fn func() error) error {
 	for {
 		err := os.Mkdir(lockPath, 0700)
 		if err == nil {
-			defer os.Remove(lockPath)
+			defer func() { _ = os.Remove(lockPath) }()
 			return fn()
 		}
 		if !os.IsExist(err) {
