@@ -72,14 +72,46 @@ func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
 		},
 		"slots": []any{
 			map[string]any{
-				"id":        "slot_abc",
-				"starts_at": "2026-09-02T09:00:00Z",
-				"job_id":    "job_abc",
+				"id":         "slot_abc",
+				"name":       "Morning",
+				"person_ids": []any{"person_abc"},
+				"assigned_people": []any{
+					map[string]any{"id": "slot_person_abc", "person_id": "person_abc"},
+				},
+				"assigned_jobs": []any{
+					map[string]any{
+						"id":                            "slot_job_abc",
+						"job_id":                        "job_abc",
+						"assigned_person_ids":           []any{"slot_person_abc"},
+						"staffing_requirement_target":   float64(2),
+						"staffing_requirement_variance": float64(0),
+						"timeline": map[string]any{
+							"label":  "2026-09-02 09:00:00",
+							"status": "future",
+							"duration": map[string]any{
+								"minimum": "PT2H",
+								"maximum": "PT2H",
+							},
+						},
+						"people": []any{
+							map[string]any{
+								"id":                   "job_person_abc",
+								"assigned_person_id":   "slot_person_abc",
+								"participation_status": "confirmed",
+								"comment":              "Lead",
+							},
+						},
+					},
+				},
 				"timeline": map[string]any{
 					"label":            "2026-09-02",
 					"starts_at":        "2026-09-02T09:00:00Z",
 					"ends_at_earliest": "2026-09-02T17:00:00Z",
 					"status":           "future",
+					"duration": map[string]any{
+						"minimum": "P1D",
+						"maximum": "P1D",
+					},
 				},
 			},
 		},
@@ -99,10 +131,12 @@ func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
 		"jobs  1 items",
 		"job_abc  Lighting",
 		"person id  person_abc",
-		"slots  1 items",
-		"slot_abc",
-		"starts at  2026-09-02T09:00:00Z",
-		"timeline   2026-09-02, starts 2026-09-02T09:00:00Z, ends 2026-09-02T17:00:00Z, future",
+		"schedule  1 slots",
+		"slot_abc  Morning",
+		"when    2026-09-02, P1D, future",
+		"people  Dana",
+		"jobs",
+		"job_abc  Lighting  (2026-09-02 09:00:00, PT2H, future; target 2; variance 0; Dana confirmed - Lead)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("rendered %q, missing %q", got, want)
