@@ -69,15 +69,18 @@ weeks spaces list
 weeks spaces list --team <team-id>
 weeks spaces view <space-id> --include overview
 
+weeks plans list
 weeks plans list --space <space-id>
 weeks plans view <plan-id> --include snapshot
 ```
 
 Use the typed IDs returned by the API, such as `team_...`, `space_...`, and
-`plan_...`. `weeks spaces list` can omit `--team` only when the active profile
-can access exactly one team; `weeks plans list` always requires `--space`.
+`plan_...`. `weeks spaces list` resolves its team from an explicit `--team`,
+then the folder default, then a sole accessible team. `weeks plans list`
+resolves its space from `--space` or the folder default.
 `view` returns one API resource, and JSON output preserves the resource shape
-returned by the server.
+returned by the server. Styled output expands included collections into
+readable sections rather than reducing them to collection counts.
 
 Include scopes are passed to the API. `overview` adds counts, people, and plans
 to a space; `snapshot` adds the plan's people, jobs, inboxes, slots,
@@ -175,7 +178,9 @@ where to save the profile and credential; pressing enter chooses local storage.
 
 Use `--global` when you deliberately want the user-wide config under
 `$XDG_CONFIG_HOME/weeks` or `~/.config/weeks`; global credentials prefer the
-system keyring and fall back to a 0600 file.
+system keyring and fall back to a 0600 file. `WEEKS_CONFIG_DIR` takes
+precedence over both locations and selects an environment-provided directory
+with file-backed credentials.
 
 ```bash
 weeks setup                 # writes ./.weeks/config.json and credentials.json
@@ -195,7 +200,12 @@ and spaces your login can see; in scripts, pass the ids explicitly.
 weeks defaults set
 weeks defaults set --team team_abc --space space_abc
 weeks defaults show
+weeks defaults clear
 ```
+
+Folder defaults are available only in true local scope. The CLI rejects
+`defaults` with `--global` or `WEEKS_CONFIG_DIR` rather than writing
+project-specific selections into a shared or externally managed store.
 
 ## Profiles are the team boundary
 
