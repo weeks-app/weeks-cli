@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -177,6 +178,24 @@ func TestPlansListUsesDefaultSpace(t *testing.T) {
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
+	}
+}
+
+func TestReadAuthBreadcrumbsRespectGlobalScope(t *testing.T) {
+	err := readErrorNext(&appctx.App{ConfigScope: config.ScopeGlobal}, output.ErrAuth("not signed in"))
+
+	var withCrumbs *output.BreadcrumbError
+	if !errors.As(err, &withCrumbs) {
+		t.Fatalf("err = %T, want BreadcrumbError", err)
+	}
+	if len(withCrumbs.Breadcrumbs) != 2 {
+		t.Fatalf("breadcrumbs = %#v", withCrumbs.Breadcrumbs)
+	}
+	if withCrumbs.Breadcrumbs[0].Cmd != "weeks --global auth login" {
+		t.Fatalf("login breadcrumb = %q", withCrumbs.Breadcrumbs[0].Cmd)
+	}
+	if withCrumbs.Breadcrumbs[1].Cmd != "weeks --global setup" {
+		t.Fatalf("setup breadcrumb = %q", withCrumbs.Breadcrumbs[1].Cmd)
 	}
 }
 

@@ -33,6 +33,9 @@ func newDefaultsShowCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
+			if err := requireLocalDefaults(app); err != nil {
+				return err
+			}
 			current := currentDefaults(app)
 			return app.Out.OK(map[string]any{
 				"profile":      app.Profile,
@@ -59,11 +62,8 @@ func newDefaultsSetCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
-			if app.ConfigScope != config.ScopeLocal {
-				return output.WithErrorNext(
-					output.ErrUsage("defaults are local to a working folder; run without --global or WEEKS_CONFIG_DIR"),
-					output.Breadcrumb{Action: "local", Cmd: "weeks defaults set", Description: "Choose folder-local defaults"},
-				)
+			if err := requireLocalDefaults(app); err != nil {
+				return err
 			}
 
 			profileName, err := ensureLocalDefaultsProfile(app)
@@ -145,11 +145,8 @@ func newDefaultsClearCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
-			if app.ConfigScope != config.ScopeLocal {
-				return output.WithErrorNext(
-					output.ErrUsage("defaults are local to a working folder; run without --global or WEEKS_CONFIG_DIR"),
-					output.Breadcrumb{Action: "local", Cmd: "weeks defaults show", Description: "Inspect the active storage scope"},
-				)
+			if err := requireLocalDefaults(app); err != nil {
+				return err
 			}
 			if app.Profile == "" {
 				return output.ErrUsage("no active local profile has defaults to clear")
@@ -179,6 +176,16 @@ func newDefaultsClearCmd() *cobra.Command {
 			)
 		},
 	}
+}
+
+func requireLocalDefaults(app *appctx.App) error {
+	if app.ConfigScope == config.ScopeLocal {
+		return nil
+	}
+	return output.WithErrorNext(
+		output.ErrUsage("defaults are local to a working folder; run without --global or WEEKS_CONFIG_DIR"),
+		output.Breadcrumb{Action: "local", Cmd: "weeks defaults set", Description: "Choose folder-local defaults"},
+	)
 }
 
 func listSpaces(cmd *cobra.Command, app *appctx.App, teamID string) (ResourceList, error) {

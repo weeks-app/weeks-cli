@@ -11,6 +11,7 @@ import (
 
 	"github.com/weeks-app/weeks-cli/internal/api"
 	"github.com/weeks-app/weeks-cli/internal/appctx"
+	"github.com/weeks-app/weeks-cli/internal/config"
 	"github.com/weeks-app/weeks-cli/internal/output"
 )
 
@@ -105,10 +106,7 @@ func newSpacesListCmd() *cobra.Command {
 				if output.AsError(err).Code == output.CodeAuth {
 					return err
 				}
-				return output.WithErrorNext(err,
-					output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default team for this folder"},
-					output.Breadcrumb{Action: "teams", Cmd: "weeks teams list", Description: "List teams you can access"},
-				)
+				return output.WithErrorNext(err, teamSelectionBreadcrumbs(app)...)
 			}
 
 			data, err := apiGetJSON(cmd, app, "/api/v1/teams/"+url.PathEscape(resolvedTeamID)+"/spaces", nil)
@@ -182,8 +180,7 @@ func newPlansListCmd() *cobra.Command {
 			if spaceID == "" {
 				return output.WithErrorNext(
 					output.ErrUsage("--space is required"),
-					output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default space for this folder"},
-					output.Breadcrumb{Action: "spaces", Cmd: "weeks spaces list", Description: "List spaces you can access"},
+					spaceSelectionBreadcrumbs(app)...,
 				)
 			}
 
@@ -238,19 +235,39 @@ func apiClient(app *appctx.App) *api.Client {
 func apiGetJSON(cmd *cobra.Command, app *appctx.App, path string, query url.Values) (any, error) {
 	data, err := apiClient(app).GetJSON(cmd.Context(), path, query)
 	if err != nil {
-		return nil, readErrorNext(err)
+		return nil, readErrorNext(app, err)
 	}
 	return data, nil
 }
 
-func readErrorNext(err error) error {
+func readErrorNext(app *appctx.App, err error) error {
 	if output.AsError(err).Code != output.CodeAuth {
 		return err
 	}
+	description := "Sign in to this folder"
+	if app.ConfigScope == config.ScopeGlobal {
+		description = "Sign in to global storage"
+	}
 	return output.WithErrorNext(err,
-		output.Breadcrumb{Action: "login", Cmd: "weeks auth login", Description: "Sign in to this folder"},
-		output.Breadcrumb{Action: "setup", Cmd: "weeks setup", Description: "Check config and agent setup"},
+		output.Breadcrumb{Action: "login", Cmd: scopedCommand(app, "weeks auth login"), Description: description},
+		output.Breadcrumb{Action: "setup", Cmd: scopedCommand(app, "weeks setup"), Description: "Check config and agent setup"},
 	)
+}
+
+func teamSelectionBreadcrumbs(app *appctx.App) []output.Breadcrumb {
+	crumbs := []output.Breadcrumb{}
+	if app.ConfigScope == config.ScopeLocal {
+		crumbs = append(crumbs, output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default team for this folder"})
+	}
+	return append(crumbs, output.Breadcrumb{Action: "teams", Cmd: scopedCommand(app, "weeks teams list"), Description: "List teams you can access"})
+}
+
+func spaceSelectionBreadcrumbs(app *appctx.App) []output.Breadcrumb {
+	crumbs := []output.Breadcrumb{}
+	if app.ConfigScope == config.ScopeLocal {
+		crumbs = append(crumbs, output.Breadcrumb{Action: "defaults", Cmd: "weeks defaults set", Description: "Choose a default space for this folder"})
+	}
+	return append(crumbs, output.Breadcrumb{Action: "spaces", Cmd: scopedCommand(app, "weeks spaces list"), Description: "List spaces you can access"})
 }
 
 func listTeams(cmd *cobra.Command, app *appctx.App) (ResourceList, error) {

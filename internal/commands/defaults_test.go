@@ -89,3 +89,19 @@ func TestDefaultsSetRejectsGlobalScope(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestDefaultsShowRejectsGlobalScope(t *testing.T) {
+	cmd := NewDefaultsCmd()
+	cmd.SetContext(appctx.With(context.Background(), &appctx.App{
+		Out:         output.New(output.Options{Format: output.FormatJSON, Writer: &bytes.Buffer{}}),
+		BaseURL:     "https://weeks.example",
+		ConfigScope: config.ScopeGlobal,
+		Profiles:    bcprofile.NewStore(config.ProfilesPathIn(t.TempDir())),
+	}))
+	cmd.SetArgs([]string{"show"})
+
+	err := cmd.Execute()
+	if output.AsError(err).Code != output.CodeUsage {
+		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
+	}
+}
