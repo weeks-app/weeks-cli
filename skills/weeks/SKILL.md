@@ -225,7 +225,8 @@ Include scopes are passed straight to the API. Useful starting points:
 - `spaces view --include overview` for counts, people, plans, and plan counts.
 - `plans view --include counts` for people, jobs, slots, and inbox counts.
 - `plans view --include snapshot` for people, jobs, inboxes, slots, assignments,
-  routes, and related planning hints.
+  and routes. Add the separate `planning_hints` scope when resolved hints are
+  required: `plans view --include snapshot,planning_hints`.
 
 ## Vocabulary
 

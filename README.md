@@ -81,7 +81,8 @@ returned by the server.
 
 Include scopes are passed to the API. `overview` adds counts, people, and plans
 to a space; `snapshot` adds the plan's people, jobs, inboxes, slots,
-assignments, routes, and related planning hints.
+assignments, and routes. Resolved planning hints are separate: use
+`--include snapshot,planning_hints` when you need both.
 
 ## The contract
 
