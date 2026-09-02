@@ -235,18 +235,18 @@ func checkCredentials(app *appctx.App) (Check, *credentialsSummary) {
 		if app.ConfigScope == config.ScopeLocal || app.ConfigScope == config.ScopeEnv {
 			return Check{
 				ID: "credentials", Name: "Credentials", Status: StatusPass,
-				Message: "stored in a 0600 file at " + app.ConfigDir,
+				Message: "stored in a 0600 file at " + app.Creds().FilePath(),
 			}, summary
 		}
 		if os.Getenv(config.EnvNoKeyring) != "" {
 			return Check{
 				ID: "credentials", Name: "Credentials", Status: StatusPass,
-				Message: fmt.Sprintf("stored in a 0600 file at %s, because %s is set", app.ConfigDir, config.EnvNoKeyring),
+				Message: fmt.Sprintf("stored in a 0600 file at %s, because %s is set", app.Creds().FilePath(), config.EnvNoKeyring),
 			}, summary
 		}
 		warning := app.Creds().FallbackWarning()
 		if warning == "" {
-			warning = "the system keyring is not in use; credentials are stored in a 0600 file at " + app.ConfigDir
+			warning = "the system keyring is not in use; credentials are stored in a 0600 file at " + app.Creds().FilePath()
 		}
 		return Check{
 			ID: "credentials", Name: "Credentials", Status: StatusWarn,

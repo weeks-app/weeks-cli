@@ -84,6 +84,7 @@ func NewStore(configDir string) *Store {
 		configDir = config.Dir()
 	}
 	return &Store{
+		fileDir: configDir,
 		inner: credstore.NewStore(credstore.StoreOptions{
 			ServiceName:   ServiceName,
 			DisableEnvVar: config.EnvNoKeyring,
@@ -115,7 +116,7 @@ func (s *Store) FallbackWarning() string {
 
 // FilePath returns the credentials file path when credentials are file-backed.
 func (s *Store) FilePath() string {
-	if s.forceFile {
+	if s.fileDir != "" {
 		return filepath.Join(s.fileDir, "credentials.json")
 	}
 	return ""
@@ -164,13 +165,21 @@ func (s *Store) load(name string) ([]byte, error) {
 	if !s.forceFile {
 		return s.inner.Load(name)
 	}
-	all, err := s.loadAllFromFile()
+	var data []byte
+	err := s.withFileLock(func() error {
+		all, err := s.loadAllFromFile()
+		if err != nil {
+			return err
+		}
+		found, ok := all[name]
+		if !ok {
+			return fmt.Errorf("credentials not found for %s", name)
+		}
+		data = append([]byte(nil), found...)
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-	data, ok := all[name]
-	if !ok {
-		return nil, fmt.Errorf("credentials not found for %s", name)
 	}
 	return data, nil
 }
@@ -179,24 +188,51 @@ func (s *Store) save(name string, data []byte) error {
 	if !s.forceFile {
 		return s.inner.Save(name, data)
 	}
-	all, err := s.loadAllFromFile()
-	if err != nil {
-		return err
-	}
-	all[name] = data
-	return s.saveAllToFile(all)
+	return s.withFileLock(func() error {
+		all, err := s.loadAllFromFile()
+		if err != nil {
+			return err
+		}
+		all[name] = data
+		return s.saveAllToFile(all)
+	})
 }
 
 func (s *Store) delete(name string) error {
 	if !s.forceFile {
 		return s.inner.Delete(name)
 	}
-	all, err := s.loadAllFromFile()
-	if err != nil {
+	return s.withFileLock(func() error {
+		all, err := s.loadAllFromFile()
+		if err != nil {
+			return err
+		}
+		delete(all, name)
+		return s.saveAllToFile(all)
+	})
+}
+
+func (s *Store) withFileLock(fn func() error) error {
+	if err := os.MkdirAll(s.fileDir, 0700); err != nil {
 		return err
 	}
-	delete(all, name)
-	return s.saveAllToFile(all)
+
+	lockPath := filepath.Join(s.fileDir, "credentials.json.lock")
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err := os.Mkdir(lockPath, 0700)
+		if err == nil {
+			defer os.Remove(lockPath)
+			return fn()
+		}
+		if !os.IsExist(err) {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for credentials file lock")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 }
 
 func (s *Store) loadAllFromFile() (map[string][]byte, error) {
@@ -256,11 +292,51 @@ func (s *Store) saveAllToFile(all map[string][]byte) error {
 	destPath := s.FilePath()
 	if err := os.Rename(tmpPath, destPath); err != nil {
 		if runtime.GOOS == "windows" {
-			_ = os.Remove(destPath)
-			return os.Rename(tmpPath, destPath)
+			return replaceFileWindows(tmpPath, destPath, s.fileDir)
 		}
 		_ = os.Remove(tmpPath)
 		return err
+	}
+	return nil
+}
+
+func replaceFileWindows(tmpPath, destPath, dir string) error {
+	backupFile, err := os.CreateTemp(dir, "credentials-*.json.bak")
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	backupPath := backupFile.Name()
+	if err := backupFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		_ = os.Remove(backupPath)
+		return err
+	}
+	if err := os.Remove(backupPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+
+	hadDest := false
+	if err := os.Rename(destPath, backupPath); err != nil {
+		if !os.IsNotExist(err) {
+			_ = os.Remove(tmpPath)
+			return err
+		}
+	} else {
+		hadDest = true
+	}
+
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		if hadDest {
+			_ = os.Rename(backupPath, destPath)
+		}
+		_ = os.Remove(tmpPath)
+		return err
+	}
+
+	if hadDest {
+		_ = os.Remove(backupPath)
 	}
 	return nil
 }
