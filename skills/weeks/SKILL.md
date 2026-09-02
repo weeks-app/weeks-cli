@@ -212,8 +212,9 @@ weeks plans view <plan-id> --include snapshot
 
 `view` means a GET of one API resource. JSON output preserves the resource
 shape the API returned. Human output is a readable projection of the same data:
-name, id, important references, and counts; requested collections are expanded
-into item sections instead of being collapsed to collection sizes.
+name, id, important references, and counts. For plan reads, requested plan
+collections are expanded into item sections; other resource types still
+summarize nested collections by count.
 
 Use typed IDs exactly as the API returns them, such as `team_...`, `space_...`,
 and `plan_...`. `weeks spaces list` resolves its team from an explicit
