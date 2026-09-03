@@ -109,8 +109,8 @@ func TestGetJSONRefreshesExpiredCredentials(t *testing.T) {
 	if gotRefreshToken != "old-refresh" {
 		t.Fatalf("refresh_token = %q, want old-refresh", gotRefreshToken)
 	}
-	if gotClientID != "runtime-client" {
-		t.Fatalf("client_id = %q, want runtime-client", gotClientID)
+	if gotClientID != "stored-client" {
+		t.Fatalf("client_id = %q, want stored-client", gotClientID)
 	}
 	if gotAuth != "Bearer new-token" {
 		t.Fatalf("Authorization = %q, want refreshed token", gotAuth)
@@ -123,8 +123,52 @@ func TestGetJSONRefreshesExpiredCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if creds.AccessToken != "new-token" || creds.RefreshToken != "new-refresh" || creds.ClientID != "runtime-client" {
+	if creds.AccessToken != "new-token" || creds.RefreshToken != "new-refresh" || creds.ClientID != "stored-client" {
 		t.Fatalf("stored credentials = %#v", creds)
+	}
+}
+
+func TestGetJSONFallsBackToRuntimeClientIDForLegacyCredential(t *testing.T) {
+	t.Setenv(config.EnvNoKeyring, "1")
+	t.Setenv("HOME", t.TempDir())
+
+	var gotClientID string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			if err := r.ParseForm(); err != nil {
+				t.Errorf("ParseForm: %v", err)
+				http.Error(w, "bad form", http.StatusInternalServerError)
+				return
+			}
+			gotClientID = r.Form.Get("client_id")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"new-token","refresh_token":"new-refresh","token_type":"Bearer","scope":"admin","expires_in":7200}`))
+		case "/api/v1/teams":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	store := auth.NewFileStore(config.Dir())
+	if err := store.Save("", &auth.Credentials{
+		AccessToken:  "old-token",
+		RefreshToken: "old-refresh",
+		BaseURL:      server.URL,
+		ExpiresAt:    time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if _, err := (&Client{BaseURL: server.URL, ClientID: "runtime-client", Creds: store}).GetJSON(context.Background(), "/api/v1/teams", nil); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+	if gotClientID != "runtime-client" {
+		t.Fatalf("client_id = %q, want runtime-client", gotClientID)
 	}
 }
 

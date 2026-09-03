@@ -80,7 +80,7 @@ func (c *Client) credentials(ctx context.Context) (*auth.Credentials, error) {
 		return nil, output.ErrAuth("stored token cannot be refreshed; run `weeks auth login`")
 	}
 
-	clientID := firstNonEmpty(c.ClientID, creds.ClientID)
+	clientID := firstNonEmpty(creds.ClientID, c.ClientID)
 	if clientID == "" {
 		if !creds.Expired() {
 			return creds, nil
