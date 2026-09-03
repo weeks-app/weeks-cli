@@ -23,7 +23,7 @@ func TestProfileHelpDistinguishesProfilesFromTeamSelection(t *testing.T) {
 	if !strings.Contains(cmd.Long, "One profile may access multiple teams") {
 		t.Fatalf("profile help = %q, want multi-team access guidance", cmd.Long)
 	}
-	if !strings.Contains(cmd.Long, "select a team with flags or folder defaults") {
+	if !strings.Contains(cmd.Long, "Select a team with --team or folder defaults") {
 		t.Fatalf("profile help = %q, want team-selection guidance", cmd.Long)
 	}
 }
