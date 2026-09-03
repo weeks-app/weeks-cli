@@ -74,17 +74,26 @@ func (c *Client) credentials(ctx context.Context) (*auth.Credentials, error) {
 		return creds, nil
 	}
 	if creds.RefreshToken == "" {
+		if !creds.Expired() {
+			return creds, nil
+		}
 		return nil, output.ErrAuth("stored token cannot be refreshed; run `weeks auth login`")
 	}
 
 	clientID := firstNonEmpty(c.ClientID, creds.ClientID)
 	if clientID == "" {
+		if !creds.Expired() {
+			return creds, nil
+		}
 		return nil, output.ErrAuth("stored token cannot be refreshed without a client id; run `weeks auth login`")
 	}
 	refresher := auth.NewClient(c.BaseURL, clientID)
 	refresher.HTTP = c.httpClient()
 	refreshed, err := refresher.Refresh(ctx, creds.RefreshToken)
 	if err != nil {
+		if !creds.Expired() {
+			return creds, nil
+		}
 		return nil, output.ErrAuth("stored token could not be refreshed; run `weeks auth login`")
 	}
 	if refreshed.RefreshToken == "" {

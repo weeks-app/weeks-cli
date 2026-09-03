@@ -199,6 +199,38 @@ func TestGetJSONRequiresLoginWhenExpiredCredentialsCannotRefresh(t *testing.T) {
 	}
 }
 
+func TestGetJSONUsesValidCredentialThatCannotRefreshYet(t *testing.T) {
+	t.Setenv(config.EnvNoKeyring, "1")
+	t.Setenv("HOME", t.TempDir())
+
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/teams" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	store := auth.NewFileStore(config.Dir())
+	if err := store.Save("", &auth.Credentials{
+		AccessToken: "old-token",
+		BaseURL:     server.URL,
+		ExpiresAt:   time.Now().Add(30 * time.Second),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if _, err := (&Client{BaseURL: server.URL, Creds: store}).GetJSON(context.Background(), "/api/v1/teams", nil); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+	if gotAuth != "Bearer old-token" {
+		t.Fatalf("Authorization = %q, want existing token", gotAuth)
+	}
+}
+
 func TestGetJSONMapsHTTPStatus(t *testing.T) {
 	t.Setenv(config.EnvNoKeyring, "1")
 	t.Setenv("HOME", t.TempDir())
