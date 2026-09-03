@@ -109,7 +109,11 @@ func (c *Client) credentials(ctx context.Context) (*auth.Credentials, error) {
 		refreshed.BaseURL = c.BaseURL
 	}
 	if err := c.Creds.Save(c.Profile, refreshed); err != nil {
-		return nil, output.ErrAuth("refreshed token could not be saved; run `weeks auth login`")
+		return nil, &output.Error{
+			Code:    output.CodeAuth,
+			Message: "refreshed token could not be saved to the credential store",
+			Hint:    "Run `weeks doctor --json` to inspect credential storage, then retry the command.",
+		}
 	}
 	return refreshed, nil
 }

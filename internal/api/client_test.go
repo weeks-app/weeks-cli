@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -216,6 +217,53 @@ func TestGetJSONPreservesRefreshTokenWhenProviderDoesNotRotate(t *testing.T) {
 	}
 	if creds.Scope != "admin" {
 		t.Fatalf("scope = %q, want preserved admin", creds.Scope)
+	}
+}
+
+func TestGetJSONReportsCredentialStoreFailureAfterRefresh(t *testing.T) {
+	t.Setenv(config.EnvNoKeyring, "1")
+	t.Setenv("HOME", t.TempDir())
+
+	store := auth.NewFileStore(config.Dir())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"new-token","token_type":"Bearer","expires_in":7200}`))
+			if err := os.Chmod(config.Dir(), 0500); err != nil {
+				t.Errorf("Chmod: %v", err)
+			}
+		case "/api/v1/teams":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	defer func() { _ = os.Chmod(config.Dir(), 0700) }()
+
+	if err := store.Save("", &auth.Credentials{
+		AccessToken:  "old-token",
+		RefreshToken: "old-refresh",
+		BaseURL:      server.URL,
+		ClientID:     "stored-client",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	_, err := (&Client{BaseURL: server.URL, Creds: store}).GetJSON(context.Background(), "/api/v1/teams", nil)
+	structured := output.AsError(err)
+	if structured.Code != output.CodeAuth {
+		t.Fatalf("code = %q, err = %v", structured.Code, err)
+	}
+	if !strings.Contains(structured.Message, "credential store") {
+		t.Fatalf("message = %q", structured.Message)
+	}
+	if strings.Contains(structured.Message, "auth login") || strings.Contains(structured.Hint, "auth login") {
+		t.Fatalf("misleading login guidance: message=%q hint=%q", structured.Message, structured.Hint)
 	}
 }
 
