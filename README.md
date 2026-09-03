@@ -140,7 +140,7 @@ The exit code and the `code` field always agree.
 |---|---|---|
 | `usage` | 1 | The command or its flags were wrong |
 | `not_found` | 2 | No such record |
-| `auth_required` | 3 | Not signed in, or the token expired |
+| `auth_required` | 3 | Not signed in, or the token cannot be refreshed |
 | `forbidden` | 4 | Authenticated but not permitted |
 | `rate_limit` | 5 | Back off and retry |
 | `network` | 6 | The installation was unreachable |
@@ -214,6 +214,11 @@ Credentials are stored per profile inside the selected storage scope. One
 profile can never read another's token, so `weeks --profile acme` and
 `weeks --profile beta` are separated; using folder-local storage also separates
 agents by working directory.
+
+New logins store a refresh token and read commands refresh expiring access
+tokens automatically. A credential created before refresh tokens were issued
+cannot be repaired in place; run `weeks auth login` once in that profile and
+storage scope.
 
 ```bash
 weeks profile set beta --base-url https://weeks.app

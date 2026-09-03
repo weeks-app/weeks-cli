@@ -112,7 +112,7 @@ Branch on the `code`, or on the exit status — they always agree.
 |---|---|---|
 | `usage` | 1 | The command or its flags were wrong. Re-read `--help --agent`. |
 | `not_found` | 2 | No such record. Check the id, or list first. |
-| `auth_required` | 3 | Not signed in, or the token expired. Run `weeks auth login`. |
+| `auth_required` | 3 | Not signed in, or the token cannot be refreshed. Run `weeks auth login`. |
 | `forbidden` | 4 | Authenticated, but not permitted. Do not retry. |
 | `rate_limit` | 5 | Back off and retry; `hint` says how long. |
 | `network` | 6 | The installation was unreachable. Retryable. |
@@ -163,6 +163,10 @@ The hosted `https://weeks.app` installation has a built-in public OAuth client
 id. Local and self-hosted installations issue their own client id; set
 `WEEKS_CLIENT_ID` or store it on the profile with `weeks profile set
 --client-id`.
+
+New logins store a refresh token. Read commands refresh expiring access tokens
+automatically; if an older credential cannot refresh, run `weeks auth login`
+again in the same profile and storage scope.
 
 ## Profiles are the team boundary
 
