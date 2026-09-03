@@ -234,7 +234,7 @@ func newPlansViewCmd() *cobra.Command {
 }
 
 func apiClient(app *appctx.App) *api.Client {
-	return &api.Client{BaseURL: app.BaseURL, Profile: app.Profile, Creds: app.Creds()}
+	return &api.Client{BaseURL: app.BaseURL, Profile: app.Profile, ClientID: app.ClientID, Creds: app.Creds()}
 }
 
 func apiGetJSON(cmd *cobra.Command, app *appctx.App, path string, query url.Values) (any, error) {

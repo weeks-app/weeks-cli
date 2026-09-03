@@ -19,6 +19,7 @@ import (
 type Client struct {
 	BaseURL    string
 	Profile    string
+	ClientID   string
 	Creds      *auth.Store
 	HTTPClient *http.Client
 }
@@ -26,12 +27,9 @@ type Client struct {
 // GetJSON GETs path and decodes the JSON response into the value the API
 // returned: a map for one resource, a slice for a collection.
 func (c *Client) GetJSON(ctx context.Context, path string, query url.Values) (any, error) {
-	creds, err := c.Creds.Load(c.Profile, c.BaseURL)
+	creds, err := c.credentials(ctx)
 	if err != nil {
-		return nil, output.ErrAuth("not signed in; run `weeks auth login`")
-	}
-	if creds.Expired() {
-		return nil, output.ErrAuth("stored token is expired; run `weeks auth login`")
+		return nil, err
 	}
 
 	endpoint, err := c.endpoint(path, query)
@@ -46,12 +44,7 @@ func (c *Client) GetJSON(ctx context.Context, path string, query url.Values) (an
 	req.Header.Set("Authorization", "Bearer "+creds.AccessToken)
 	req.Header.Set("Accept", "application/json")
 
-	client := c.HTTPClient
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
-	}
-
-	resp, err := client.Do(req)
+	resp, err := c.httpClient().Do(req)
 	if err != nil {
 		return nil, output.ErrNetwork(err)
 	}
@@ -72,6 +65,53 @@ func (c *Client) GetJSON(ctx context.Context, path string, query url.Values) (an
 	return data, nil
 }
 
+func (c *Client) credentials(ctx context.Context) (*auth.Credentials, error) {
+	creds, err := c.Creds.Load(c.Profile, c.BaseURL)
+	if err != nil {
+		return nil, output.ErrAuth("not signed in; run `weeks auth login`")
+	}
+	if !creds.ExpiringWithin(time.Minute) {
+		return creds, nil
+	}
+	if creds.RefreshToken == "" {
+		return nil, output.ErrAuth("stored token cannot be refreshed; run `weeks auth login`")
+	}
+
+	clientID := firstNonEmpty(c.ClientID, creds.ClientID)
+	if clientID == "" {
+		return nil, output.ErrAuth("stored token cannot be refreshed without a client id; run `weeks auth login`")
+	}
+	refresher := auth.NewClient(c.BaseURL, clientID)
+	refresher.HTTP = c.httpClient()
+	refreshed, err := refresher.Refresh(ctx, creds.RefreshToken)
+	if err != nil {
+		return nil, output.ErrAuth("stored token could not be refreshed; run `weeks auth login`")
+	}
+	if refreshed.RefreshToken == "" {
+		refreshed.RefreshToken = creds.RefreshToken
+	}
+	if refreshed.Scope == "" {
+		refreshed.Scope = creds.Scope
+	}
+	if refreshed.ClientID == "" {
+		refreshed.ClientID = clientID
+	}
+	if refreshed.BaseURL == "" {
+		refreshed.BaseURL = c.BaseURL
+	}
+	if err := c.Creds.Save(c.Profile, refreshed); err != nil {
+		return nil, output.ErrAuth("refreshed token could not be saved; run `weeks auth login`")
+	}
+	return refreshed, nil
+}
+
+func (c *Client) httpClient() *http.Client {
+	if c.HTTPClient != nil {
+		return c.HTTPClient
+	}
+	return &http.Client{Timeout: 30 * time.Second}
+}
+
 func (c *Client) endpoint(path string, query url.Values) (string, error) {
 	base, err := url.Parse(c.BaseURL)
 	if err != nil {
@@ -90,6 +130,15 @@ func (c *Client) endpoint(path string, query url.Values) (string, error) {
 	}
 	base.RawQuery = values.Encode()
 	return base.String(), nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func responseError(status int, body []byte) error {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/weeks-app/weeks-cli/internal/auth"
 	"github.com/weeks-app/weeks-cli/internal/config"
@@ -58,6 +59,143 @@ func TestGetJSONRequiresCredentials(t *testing.T) {
 	_, err := (&Client{BaseURL: "https://weeks.test", Creds: auth.NewFileStore(config.Dir())}).GetJSON(context.Background(), "/api/v1/teams", nil)
 	if output.AsError(err).Code != output.CodeAuth {
 		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
+	}
+}
+
+func TestGetJSONRefreshesExpiredCredentials(t *testing.T) {
+	t.Setenv(config.EnvNoKeyring, "1")
+	t.Setenv("HOME", t.TempDir())
+
+	var gotRefreshToken, gotClientID, gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("ParseForm: %v", err)
+			}
+			gotRefreshToken = r.Form.Get("refresh_token")
+			gotClientID = r.Form.Get("client_id")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"new-token","refresh_token":"new-refresh","token_type":"Bearer","scope":"admin","expires_in":7200}`))
+		case "/api/v1/teams":
+			gotAuth = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[{"id":"team_abc","name":"Ops"}]`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	store := auth.NewFileStore(config.Dir())
+	if err := store.Save("", &auth.Credentials{
+		AccessToken:  "old-token",
+		RefreshToken: "old-refresh",
+		BaseURL:      server.URL,
+		ClientID:     "stored-client",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	data, err := (&Client{BaseURL: server.URL, ClientID: "runtime-client", Creds: store}).GetJSON(context.Background(), "/api/v1/teams", nil)
+	if err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+
+	if gotRefreshToken != "old-refresh" {
+		t.Fatalf("refresh_token = %q, want old-refresh", gotRefreshToken)
+	}
+	if gotClientID != "runtime-client" {
+		t.Fatalf("client_id = %q, want runtime-client", gotClientID)
+	}
+	if gotAuth != "Bearer new-token" {
+		t.Fatalf("Authorization = %q, want refreshed token", gotAuth)
+	}
+	if len(data.([]any)) != 1 {
+		t.Fatalf("data = %#v", data)
+	}
+
+	creds, err := store.Load("", server.URL)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if creds.AccessToken != "new-token" || creds.RefreshToken != "new-refresh" || creds.ClientID != "runtime-client" {
+		t.Fatalf("stored credentials = %#v", creds)
+	}
+}
+
+func TestGetJSONPreservesRefreshTokenWhenProviderDoesNotRotate(t *testing.T) {
+	t.Setenv(config.EnvNoKeyring, "1")
+	t.Setenv("HOME", t.TempDir())
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"new-token","token_type":"Bearer","expires_in":7200}`))
+		case "/api/v1/teams":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	store := auth.NewFileStore(config.Dir())
+	if err := store.Save("", &auth.Credentials{
+		AccessToken:  "old-token",
+		RefreshToken: "old-refresh",
+		BaseURL:      server.URL,
+		ClientID:     "stored-client",
+		Scope:        "admin",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if _, err := (&Client{BaseURL: server.URL, Creds: store}).GetJSON(context.Background(), "/api/v1/teams", nil); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+
+	creds, err := store.Load("", server.URL)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if creds.RefreshToken != "old-refresh" {
+		t.Fatalf("refresh token = %q, want preserved old-refresh", creds.RefreshToken)
+	}
+	if creds.Scope != "admin" {
+		t.Fatalf("scope = %q, want preserved admin", creds.Scope)
+	}
+}
+
+func TestGetJSONRequiresLoginWhenExpiredCredentialsCannotRefresh(t *testing.T) {
+	t.Setenv(config.EnvNoKeyring, "1")
+	t.Setenv("HOME", t.TempDir())
+
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		calls++
+	}))
+	defer server.Close()
+
+	store := auth.NewFileStore(config.Dir())
+	if err := store.Save("", &auth.Credentials{
+		AccessToken: "old-token",
+		BaseURL:     server.URL,
+		ExpiresAt:   time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	_, err := (&Client{BaseURL: server.URL, Creds: store}).GetJSON(context.Background(), "/api/v1/teams", nil)
+	if output.AsError(err).Code != output.CodeAuth {
+		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
+	}
+	if calls != 0 {
+		t.Fatalf("server calls = %d, want none", calls)
 	}
 }
 
