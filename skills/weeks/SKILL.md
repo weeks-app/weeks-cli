@@ -168,7 +168,7 @@ New logins store a refresh token. Read commands refresh expiring access tokens
 automatically; if an older credential cannot refresh, run `weeks auth login`
 again in the same profile and storage scope.
 
-## Profiles are the team boundary
+## Profiles isolate installations and credentials
 
 ```bash
 weeks profile set acme --base-url https://weeks.app
@@ -177,8 +177,9 @@ weeks --profile acme <command>
 ```
 
 Credentials are stored per profile, so one profile can never read another's
-token. When work spans two teams, use two profiles — never one credential with
-wider access.
+token. A profile can access multiple teams when its login can. Use `--team` or
+folder defaults to select among them. Create another profile when the Weeks
+installation or login identity differs, not merely to select another team.
 
 ## Folder defaults
 

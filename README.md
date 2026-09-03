@@ -208,12 +208,15 @@ Folder defaults are available only in true local scope. The CLI rejects
 `defaults` with `--global` or `WEEKS_CONFIG_DIR` rather than writing
 project-specific selections into a shared or externally managed store.
 
-## Profiles are the team boundary
+## Profiles isolate installations and credentials
 
 Credentials are stored per profile inside the selected storage scope. One
 profile can never read another's token, so `weeks --profile acme` and
 `weeks --profile beta` are separated; using folder-local storage also separates
-agents by working directory.
+agents by working directory. A profile is not limited to one team: its login
+can list every team that identity may access. Use `--team` or folder defaults
+to select among those teams. Create separate profiles when the Weeks
+installation or login identity differs, not merely to select another team.
 
 New logins store a refresh token and read commands refresh expiring access
 tokens automatically. A credential created before refresh tokens were issued

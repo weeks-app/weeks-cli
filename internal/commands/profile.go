@@ -15,18 +15,18 @@ import (
 
 // NewProfileCmd builds `weeks profile`.
 //
-// A profile is one weeks installation plus the credential for it. Because the
-// credential store keys on the profile name, `weeks --profile acme` and
-// `weeks --profile beta` cannot see each other's tokens — which is how one
-// operator drives several teams without one of them ever holding the other's
-// access.
+// A profile is one weeks installation plus the credential for it. Because each
+// stored credential key includes the profile name and installation base URL,
+// `weeks --profile acme` and `weeks --profile beta` cannot see each other's
+// tokens. A credential can still access several teams; team selection is
+// handled by flags and folder defaults rather than by the profile boundary.
 func NewProfileCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "profile",
-		Short: "Manage named profiles, one per installation or team",
+		Short: "Manage named installation and login profiles",
 		Long: "A profile names a weeks installation and owns its credential.\n\n" +
 			"Select one with --profile, or WEEKS_PROFILE, or by making it the default.\n" +
-			"Credentials are stored per profile, so profiles are the boundary between teams.",
+			"Credentials are stored per profile. One profile may access multiple teams; select a team with flags or folder defaults.",
 	}
 	cmd.AddCommand(
 		newProfileListCmd(),

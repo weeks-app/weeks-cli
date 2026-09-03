@@ -17,6 +17,17 @@ import (
 	"github.com/weeks-app/weeks-cli/internal/output"
 )
 
+func TestProfileHelpDistinguishesProfilesFromTeamSelection(t *testing.T) {
+	cmd := NewProfileCmd()
+
+	if !strings.Contains(cmd.Long, "One profile may access multiple teams") {
+		t.Fatalf("profile help = %q, want multi-team access guidance", cmd.Long)
+	}
+	if !strings.Contains(cmd.Long, "select a team with flags or folder defaults") {
+		t.Fatalf("profile help = %q, want team-selection guidance", cmd.Long)
+	}
+}
+
 func TestProfileDefaultReportsConfigReadErrors(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
