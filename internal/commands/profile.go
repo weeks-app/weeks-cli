@@ -26,7 +26,7 @@ func NewProfileCmd() *cobra.Command {
 		Short: "Manage named installation and login profiles",
 		Long: "A profile names a weeks installation and owns its credential.\n\n" +
 			"Select one with --profile, or WEEKS_PROFILE, or by making it the default.\n" +
-			"Credentials are stored per profile. One profile may access multiple teams; select a team with flags or folder defaults.",
+			"Credentials are stored per profile. One profile may access multiple teams; select one with --team or folder defaults.",
 	}
 	cmd.AddCommand(
 		newProfileListCmd(),
