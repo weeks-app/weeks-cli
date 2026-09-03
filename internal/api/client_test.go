@@ -71,7 +71,9 @@ func TestGetJSONRefreshesExpiredCredentials(t *testing.T) {
 		switch r.URL.Path {
 		case "/oauth/token":
 			if err := r.ParseForm(); err != nil {
-				t.Fatalf("ParseForm: %v", err)
+				t.Errorf("ParseForm: %v", err)
+				http.Error(w, "bad form", http.StatusInternalServerError)
+				return
 			}
 			gotRefreshToken = r.Form.Get("refresh_token")
 			gotClientID = r.Form.Get("client_id")
@@ -82,7 +84,8 @@ func TestGetJSONRefreshesExpiredCredentials(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`[{"id":"team_abc","name":"Ops"}]`))
 		default:
-			t.Fatalf("unexpected path %s", r.URL.Path)
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
 		}
 	}))
 	defer server.Close()
@@ -138,7 +141,8 @@ func TestGetJSONPreservesRefreshTokenWhenProviderDoesNotRotate(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`[]`))
 		default:
-			t.Fatalf("unexpected path %s", r.URL.Path)
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
 		}
 	}))
 	defer server.Close()
@@ -206,7 +210,9 @@ func TestGetJSONUsesValidCredentialThatCannotRefreshYet(t *testing.T) {
 	var gotAuth string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/teams" {
-			t.Fatalf("unexpected path %s", r.URL.Path)
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
 		}
 		gotAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
