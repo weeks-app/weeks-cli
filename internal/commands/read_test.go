@@ -163,6 +163,51 @@ func TestSlotJobPeopleSkipsNamelessParticipation(t *testing.T) {
 	}
 }
 
+func TestSlotPeopleDedupesByStableID(t *testing.T) {
+	slot := Resource{
+		"person_ids": []any{"person_1", "person_2", "person_1"},
+		"assigned_people": []any{
+			map[string]any{"person_id": "person_2"},
+			map[string]any{"id": "slot_person_3"},
+		},
+	}
+	lookup := planLookup{
+		people:     map[string]string{"person_1": "Dana", "person_2": "Dana"},
+		slotPeople: map[string]string{"slot_person_3": "Riley"},
+	}
+
+	got := slotPeople(slot, lookup)
+	want := []string{"Dana", "Dana", "Riley"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("slotPeople = %#v, want %#v", got, want)
+	}
+}
+
+func TestSlotJobPeopleDedupesByStableID(t *testing.T) {
+	lookup := planLookup{slotPeople: map[string]string{
+		"slot_person_1": "Dana",
+		"slot_person_2": "Dana",
+	}}
+
+	job := Resource{"people": []any{
+		map[string]any{"assigned_person_id": "slot_person_1", "participation_status": "confirmed"},
+		map[string]any{"assigned_person_id": "slot_person_2", "participation_status": "confirmed"},
+		map[string]any{"assigned_person_id": "slot_person_1", "participation_status": "declined"},
+	}}
+	got := slotJobPeople(job, lookup)
+	want := []string{"Dana confirmed", "Dana confirmed"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("slotJobPeople people = %#v, want %#v", got, want)
+	}
+
+	job = Resource{"assigned_person_ids": []any{"slot_person_1", "slot_person_2", "slot_person_1"}}
+	got = slotJobPeople(job, lookup)
+	want = []string{"Dana", "Dana"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("slotJobPeople assigned_person_ids = %#v, want %#v", got, want)
+	}
+}
+
 func TestIsEmptySnapshotValueTreatsTypedEmptySlices(t *testing.T) {
 	for _, value := range []any{
 		[]string{},

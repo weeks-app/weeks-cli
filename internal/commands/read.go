@@ -571,16 +571,25 @@ func slotPeople(slot Resource, lookup planLookup) []string {
 	var people []string
 	for _, id := range stringSlice(slot["person_ids"]) {
 		name := lookup.personName(id)
-		if name != "" && !seen[name] {
+		key := "person:" + id
+		if name != "" && !seen[key] {
 			people = append(people, name)
-			seen[name] = true
+			seen[key] = true
 		}
 	}
 	for _, raw := range anySlice(slot["assigned_people"]) {
-		name := lookup.personName(stringValue(resource(raw)["person_id"]))
-		if name != "" && !seen[name] {
+		assigned := resource(raw)
+		personID := stringValue(assigned["person_id"])
+		slotPersonID := idOf(assigned)
+		name := lookup.personName(personID)
+		key := "person:" + personID
+		if personID == "" {
+			name = lookup.personName(slotPersonID)
+			key = "slot_person:" + slotPersonID
+		}
+		if name != "" && key != "" && !seen[key] {
 			people = append(people, name)
-			seen[name] = true
+			seen[key] = true
 		}
 	}
 	return people
@@ -629,7 +638,8 @@ func slotJobPeople(job Resource, lookup planLookup) []string {
 	assigned := anySlice(job["people"])
 	for _, raw := range assigned {
 		person := resource(raw)
-		name := lookup.personName(stringValue(person["assigned_person_id"]))
+		assignedPersonID := stringValue(person["assigned_person_id"])
+		name := lookup.personName(assignedPersonID)
 		if name == "" {
 			continue
 		}
@@ -639,9 +649,9 @@ func slotJobPeople(job Resource, lookup planLookup) []string {
 		if comment := stringValue(person["comment"]); comment != "" {
 			name += " - " + comment
 		}
-		if name != "" && !seen[name] {
+		if name != "" && !seen[assignedPersonID] {
 			names = append(names, name)
-			seen[name] = true
+			seen[assignedPersonID] = true
 		}
 	}
 	if len(assigned) > 0 {
@@ -649,9 +659,9 @@ func slotJobPeople(job Resource, lookup planLookup) []string {
 	}
 	for _, id := range stringSlice(job["assigned_person_ids"]) {
 		name := lookup.personName(id)
-		if name != "" && !seen[name] {
+		if name != "" && !seen[id] {
 			names = append(names, name)
-			seen[name] = true
+			seen[id] = true
 		}
 	}
 	return names
