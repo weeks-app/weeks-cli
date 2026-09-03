@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -347,7 +348,7 @@ func (p PlanResource) RenderStyled(w io.Writer, style *output.Style) error {
 		if !ok {
 			continue
 		}
-		if err := renderSnapshotSection(w, style, key, items); err != nil {
+		if err := renderSnapshotSection(w, style, plan, key, items); err != nil {
 			return err
 		}
 	}
@@ -396,7 +397,7 @@ func orderedScalarKeys(r Resource) []string {
 }
 
 func orderedSnapshotSections(r Resource) []string {
-	priority := []string{"people", "jobs", "slots", "assignments", "routes", "inboxes"}
+	priority := []string{"slots", "people", "jobs", "assignments", "routes", "inboxes"}
 	seen := map[string]bool{}
 	sections := make([]string, 0, len(priority))
 	for _, key := range priority {
@@ -419,7 +420,11 @@ func orderedSnapshotSections(r Resource) []string {
 	return append(sections, rest...)
 }
 
-func renderSnapshotSection(w io.Writer, style *output.Style, key string, items []any) error {
+func renderSnapshotSection(w io.Writer, style *output.Style, plan Resource, key string, items []any) error {
+	if key == "slots" {
+		return renderSlotsSection(w, style, items, newPlanLookup(plan))
+	}
+
 	if _, err := fmt.Fprintf(w, "\n%s%s%s  %d items\n", style.Bold, strings.ReplaceAll(key, "_", " "), style.Reset, len(items)); err != nil {
 		return err
 	}
@@ -450,16 +455,242 @@ func renderSnapshotItem(w io.Writer, style *output.Style, item Resource) error {
 		if skipSnapshotField(key) {
 			continue
 		}
+		if isEmptySnapshotValue(item[key]) {
+			continue
+		}
 		filtered = append(filtered, key)
 	}
 	return renderIndentedScalarFields(w, style, item, filtered, "    ")
 }
 
+type planLookup struct {
+	jobs       map[string]string
+	people     map[string]string
+	slotPeople map[string]string
+}
+
+func newPlanLookup(plan Resource) planLookup {
+	lookup := planLookup{
+		jobs:       map[string]string{},
+		people:     map[string]string{},
+		slotPeople: map[string]string{},
+	}
+	for _, raw := range anySlice(plan["jobs"]) {
+		job := resource(raw)
+		if id := idOf(job); id != "" {
+			lookup.jobs[id] = resourceLabel(job)
+		}
+	}
+	for _, raw := range anySlice(plan["people"]) {
+		person := resource(raw)
+		if id := idOf(person); id != "" {
+			lookup.people[id] = resourceLabel(person)
+		}
+	}
+	for _, rawSlot := range anySlice(plan["slots"]) {
+		slot := resource(rawSlot)
+		for _, rawAssigned := range anySlice(slot["assigned_people"]) {
+			assigned := resource(rawAssigned)
+			slotPersonID := idOf(assigned)
+			personID := stringValue(assigned["person_id"])
+			if slotPersonID != "" && personID != "" {
+				lookup.slotPeople[slotPersonID] = lookup.personName(personID)
+			}
+		}
+	}
+	return lookup
+}
+
+func (l planLookup) jobName(id string) string {
+	if name := l.jobs[id]; name != "" {
+		return name
+	}
+	return id
+}
+
+func (l planLookup) personName(id string) string {
+	if name := l.people[id]; name != "" {
+		return name
+	}
+	if name := l.slotPeople[id]; name != "" {
+		return name
+	}
+	return id
+}
+
+func renderSlotsSection(w io.Writer, style *output.Style, items []any, lookup planLookup) error {
+	if _, err := fmt.Fprintf(w, "\n%sschedule%s  %d slots\n", style.Bold, style.Reset, len(items)); err != nil {
+		return err
+	}
+	for _, raw := range items {
+		if err := renderSlot(w, style, resource(raw), lookup); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderSlot(w io.Writer, style *output.Style, slot Resource, lookup planLookup) error {
+	title := resourceLabel(slot)
+	if id := idOf(slot); id != "" && title != id {
+		title = id + "  " + title
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s%s\n", style.Bold, title, style.Reset); err != nil {
+		return err
+	}
+	if timeline, ok := slot["timeline"].(map[string]any); ok {
+		if _, err := fmt.Fprintf(w, "    %swhen%s    %s\n", style.Dim, style.Reset, summarizeMap(timeline)); err != nil {
+			return err
+		}
+	}
+	if people := slotPeople(slot, lookup); len(people) > 0 {
+		if _, err := fmt.Fprintf(w, "    %speople%s  %s\n", style.Dim, style.Reset, strings.Join(people, ", ")); err != nil {
+			return err
+		}
+	}
+	if place := stringValue(slot["place"]); place != "" {
+		if _, err := fmt.Fprintf(w, "    %splace%s   %s\n", style.Dim, style.Reset, place); err != nil {
+			return err
+		}
+	}
+	if jobs := anySlice(slot["assigned_jobs"]); len(jobs) > 0 {
+		if _, err := fmt.Fprintf(w, "    %sjobs%s\n", style.Dim, style.Reset); err != nil {
+			return err
+		}
+		for _, rawJob := range jobs {
+			if err := renderSlotJob(w, style, resource(rawJob), lookup); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func slotPeople(slot Resource, lookup planLookup) []string {
+	seen := map[string]bool{}
+	var people []string
+	for _, id := range stringSlice(slot["person_ids"]) {
+		name := lookup.personName(id)
+		key := "person:" + id
+		if name != "" && !seen[key] {
+			people = append(people, name)
+			seen[key] = true
+		}
+	}
+	for _, raw := range anySlice(slot["assigned_people"]) {
+		assigned := resource(raw)
+		personID := stringValue(assigned["person_id"])
+		slotPersonID := idOf(assigned)
+		name := lookup.personName(personID)
+		key := "person:" + personID
+		if personID == "" {
+			name = lookup.personName(slotPersonID)
+			key = "slot_person:" + slotPersonID
+		}
+		if name != "" && key != "" && !seen[key] {
+			people = append(people, name)
+			seen[key] = true
+		}
+	}
+	return people
+}
+
+func renderSlotJob(w io.Writer, style *output.Style, job Resource, lookup planLookup) error {
+	jobID := stringValue(job["job_id"])
+	title := lookup.jobName(jobID)
+	if jobID != "" && title != jobID {
+		title = jobID + "  " + title
+	}
+	detail := slotJobDetail(job, lookup)
+	if detail != "" {
+		title += "  " + detail
+	}
+	if _, err := fmt.Fprintf(w, "      %s\n", title); err != nil {
+		return err
+	}
+	return nil
+}
+
+func slotJobDetail(job Resource, lookup planLookup) string {
+	var parts []string
+	if timeline, ok := job["timeline"].(map[string]any); ok {
+		parts = append(parts, summarizeMap(timeline))
+	}
+	if target := stringValue(job["staffing_requirement_target"]); target != "" {
+		parts = append(parts, "target "+target)
+	}
+	if variance := stringValue(job["staffing_requirement_variance"]); variance != "" {
+		parts = append(parts, "variance "+variance)
+	}
+	names := slotJobPeople(job, lookup)
+	if len(names) > 0 {
+		parts = append(parts, strings.Join(names, ", "))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(parts, "; ") + ")"
+}
+
+func slotJobPeople(job Resource, lookup planLookup) []string {
+	seen := map[string]bool{}
+	var names []string
+	assigned := anySlice(job["people"])
+	for _, raw := range assigned {
+		person := resource(raw)
+		assignedPersonID := stringValue(person["assigned_person_id"])
+		name := lookup.personName(assignedPersonID)
+		if name == "" {
+			continue
+		}
+		if status := stringValue(person["participation_status"]); status != "" {
+			name += " " + status
+		}
+		if comment := stringValue(person["comment"]); comment != "" {
+			name += " - " + comment
+		}
+		if name != "" && !seen[assignedPersonID] {
+			names = append(names, name)
+			seen[assignedPersonID] = true
+		}
+	}
+	if len(assigned) > 0 {
+		return names
+	}
+	for _, id := range stringSlice(job["assigned_person_ids"]) {
+		name := lookup.personName(id)
+		if name != "" && !seen[id] {
+			names = append(names, name)
+			seen[id] = true
+		}
+	}
+	return names
+}
+
 func skipSnapshotField(key string) bool {
 	switch key {
-	case "id", "name", "display_name", "created_at", "updated_at", "plan_id", "space_person":
+	case "id", "name", "display_name", "created_at", "updated_at", "plan_id", "space_person", "space_person_id", "reconciliation_status":
 		return true
 	default:
+		return false
+	}
+}
+
+func isEmptySnapshotValue(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case string:
+		return typed == ""
+	case []any:
+		return len(typed) == 0
+	case map[string]any:
+		return len(typed) == 0 || summarizeMap(typed) == ""
+	default:
+		value := reflect.ValueOf(value)
+		if value.Kind() == reflect.Slice || value.Kind() == reflect.Array {
+			return value.Len() == 0
+		}
 		return false
 	}
 }
@@ -531,6 +762,38 @@ func stringValue(value any) string {
 	return ""
 }
 
+func anySlice(value any) []any {
+	switch typed := value.(type) {
+	case []any:
+		return typed
+	case []map[string]any:
+		items := make([]any, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, item)
+		}
+		return items
+	default:
+		return nil
+	}
+}
+
+func stringSlice(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if value := stringValue(item); value != "" {
+				values = append(values, value)
+			}
+		}
+		return values
+	default:
+		return nil
+	}
+}
+
 func styledValue(value any) string {
 	switch typed := value.(type) {
 	case nil:
@@ -552,11 +815,8 @@ func styledValue(value any) string {
 func summarizeMap(values map[string]any) string {
 	if label := stringValue(values["label"]); label != "" {
 		parts := []string{label}
-		if startsAt := stringValue(values["starts_at"]); startsAt != "" {
-			parts = append(parts, "starts "+startsAt)
-		}
-		if endsAt := firstStringValue(values, "ends_at", "ends_at_earliest", "ends_at_latest"); endsAt != "" {
-			parts = append(parts, "ends "+endsAt)
+		if duration := durationSummary(values["duration"]); duration != "" {
+			parts = append(parts, duration)
 		}
 		if status := stringValue(values["status"]); status != "" {
 			parts = append(parts, status)
@@ -566,13 +826,25 @@ func summarizeMap(values map[string]any) string {
 	return summarizeCounts(values)
 }
 
-func firstStringValue(values map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if value := stringValue(values[key]); value != "" {
-			return value
-		}
+func durationSummary(value any) string {
+	values, ok := value.(map[string]any)
+	if !ok {
+		return ""
 	}
-	return ""
+	minimum := stringValue(values["minimum"])
+	maximum := stringValue(values["maximum"])
+	switch {
+	case minimum == "" && maximum == "":
+		return ""
+	case minimum == maximum:
+		return minimum
+	case minimum == "":
+		return maximum
+	case maximum == "":
+		return minimum
+	default:
+		return minimum + "-" + maximum
+	}
 }
 
 func summarizeCounts(counts map[string]any) string {

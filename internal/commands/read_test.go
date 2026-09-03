@@ -72,14 +72,46 @@ func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
 		},
 		"slots": []any{
 			map[string]any{
-				"id":        "slot_abc",
-				"starts_at": "2026-09-02T09:00:00Z",
-				"job_id":    "job_abc",
+				"id":         "slot_abc",
+				"name":       "Morning",
+				"person_ids": []any{"person_abc"},
+				"assigned_people": []any{
+					map[string]any{"id": "slot_person_abc", "person_id": "person_abc"},
+				},
+				"assigned_jobs": []any{
+					map[string]any{
+						"id":                            "slot_job_abc",
+						"job_id":                        "job_abc",
+						"assigned_person_ids":           []any{"slot_person_abc"},
+						"staffing_requirement_target":   float64(2),
+						"staffing_requirement_variance": float64(0),
+						"timeline": map[string]any{
+							"label":  "2026-09-02 09:00:00",
+							"status": "future",
+							"duration": map[string]any{
+								"minimum": "PT2H",
+								"maximum": "PT2H",
+							},
+						},
+						"people": []any{
+							map[string]any{
+								"id":                   "job_person_abc",
+								"assigned_person_id":   "slot_person_abc",
+								"participation_status": "confirmed",
+								"comment":              "Lead",
+							},
+						},
+					},
+				},
 				"timeline": map[string]any{
 					"label":            "2026-09-02",
 					"starts_at":        "2026-09-02T09:00:00Z",
 					"ends_at_earliest": "2026-09-02T17:00:00Z",
 					"status":           "future",
+					"duration": map[string]any{
+						"minimum": "P1D",
+						"maximum": "P1D",
+					},
 				},
 			},
 		},
@@ -99,10 +131,12 @@ func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
 		"jobs  1 items",
 		"job_abc  Lighting",
 		"person id  person_abc",
-		"slots  1 items",
-		"slot_abc",
-		"starts at  2026-09-02T09:00:00Z",
-		"timeline   2026-09-02, starts 2026-09-02T09:00:00Z, ends 2026-09-02T17:00:00Z, future",
+		"schedule  1 slots",
+		"slot_abc  Morning",
+		"when    2026-09-02, P1D, future",
+		"people  Dana",
+		"jobs",
+		"job_abc  Lighting  (2026-09-02 09:00:00, PT2H, future; target 2; variance 0; Dana confirmed - Lead)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("rendered %q, missing %q", got, want)
@@ -113,6 +147,80 @@ func TestPlanSnapshotRendersIncludedCollections(t *testing.T) {
 	}
 	if strings.Contains(got, "space person") || strings.Contains(got, "map[") {
 		t.Fatalf("snapshot renderer leaked nested implementation detail:\n%s", got)
+	}
+}
+
+func TestSlotJobPeopleSkipsNamelessParticipation(t *testing.T) {
+	job := Resource{"people": []any{
+		map[string]any{"participation_status": "confirmed", "comment": "Lead"},
+		map[string]any{"assigned_person_id": "slot_person_abc", "participation_status": "confirmed"},
+	}}
+	lookup := planLookup{slotPeople: map[string]string{"slot_person_abc": "Dana"}}
+
+	got := slotJobPeople(job, lookup)
+	if len(got) != 1 || got[0] != "Dana confirmed" {
+		t.Fatalf("slotJobPeople = %#v, want only named participation", got)
+	}
+}
+
+func TestSlotPeopleDedupesByStableID(t *testing.T) {
+	slot := Resource{
+		"person_ids": []any{"person_1", "person_2", "person_1"},
+		"assigned_people": []any{
+			map[string]any{"person_id": "person_2"},
+			map[string]any{"id": "slot_person_3"},
+		},
+	}
+	lookup := planLookup{
+		people:     map[string]string{"person_1": "Dana", "person_2": "Dana"},
+		slotPeople: map[string]string{"slot_person_3": "Riley"},
+	}
+
+	got := slotPeople(slot, lookup)
+	want := []string{"Dana", "Dana", "Riley"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("slotPeople = %#v, want %#v", got, want)
+	}
+}
+
+func TestSlotJobPeopleDedupesByStableID(t *testing.T) {
+	lookup := planLookup{slotPeople: map[string]string{
+		"slot_person_1": "Dana",
+		"slot_person_2": "Dana",
+	}}
+
+	job := Resource{"people": []any{
+		map[string]any{"assigned_person_id": "slot_person_1", "participation_status": "confirmed"},
+		map[string]any{"assigned_person_id": "slot_person_2", "participation_status": "confirmed"},
+		map[string]any{"assigned_person_id": "slot_person_1", "participation_status": "declined"},
+	}}
+	got := slotJobPeople(job, lookup)
+	want := []string{"Dana confirmed", "Dana confirmed"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("slotJobPeople people = %#v, want %#v", got, want)
+	}
+
+	job = Resource{"assigned_person_ids": []any{"slot_person_1", "slot_person_2", "slot_person_1"}}
+	got = slotJobPeople(job, lookup)
+	want = []string{"Dana", "Dana"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("slotJobPeople assigned_person_ids = %#v, want %#v", got, want)
+	}
+}
+
+func TestIsEmptySnapshotValueTreatsTypedEmptySlices(t *testing.T) {
+	for _, value := range []any{
+		[]string{},
+		[]map[string]any{},
+		[0]string{},
+	} {
+		if !isEmptySnapshotValue(value) {
+			t.Fatalf("isEmptySnapshotValue(%T) = false, want true", value)
+		}
+	}
+
+	if isEmptySnapshotValue([]string{"person_abc"}) {
+		t.Fatal("isEmptySnapshotValue(non-empty []string) = true, want false")
 	}
 }
 
