@@ -141,7 +141,6 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 		commands.NewSpacesCmd(),
 		commands.NewPeopleCmd(),
 		commands.NewPlanningContextsCmd(),
-		commands.NewPlanningContextValuesCmd(),
 		commands.NewPlansCmd(),
 		commands.NewSkillCmd(),
 		commands.NewSetupCmd(),
