@@ -351,6 +351,99 @@ func TestPlansListUsesDefaultSpace(t *testing.T) {
 	}
 }
 
+func TestPeopleListCallsAPI(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/people" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"person_abc","name":"Dana","display_name":"Dana Lee","space_id":"space_abc"}]`))
+	})
+	defer server.Close()
+
+	cmd := NewPeopleCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list", "--space", "space_abc"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got := appOutput(app)
+	if !strings.Contains(got, "person_abc") || !strings.Contains(got, "Dana") || !strings.Contains(got, "weeks plans list --space space_abc") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestPeopleListUsesDefaultSpace(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/people" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"person_abc","name":"Dana","space_id":"space_abc"}]`))
+	})
+	defer server.Close()
+	setReadTestDefaults(t, app, defaults{TeamID: "team_abc", SpaceID: "space_abc"})
+
+	cmd := NewPeopleCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+}
+
+func TestPeopleListRequiresSpace(t *testing.T) {
+	cmd := NewPeopleCmd()
+	configDir := t.TempDir()
+	t.Setenv(config.EnvConfigDir, configDir)
+	cmd.SetContext(appctx.With(context.Background(), &appctx.App{
+		Out:         output.New(output.Options{Format: output.FormatStyled, Writer: &bytes.Buffer{}}),
+		ConfigDir:   configDir,
+		ConfigScope: config.ScopeLocal,
+		Profile:     "acme",
+		Profiles:    bcprofile.NewStore(config.ProfilesPath()),
+	}))
+	cmd.SetArgs([]string{"list"})
+
+	err := cmd.Execute()
+	if output.AsError(err).Code != output.CodeUsage {
+		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
+	}
+	var withCrumbs *output.BreadcrumbError
+	if !errors.As(err, &withCrumbs) {
+		t.Fatalf("err = %T, want BreadcrumbError", err)
+	}
+	got := []string{withCrumbs.Breadcrumbs[0].Cmd, withCrumbs.Breadcrumbs[1].Cmd}
+	want := []string{"weeks defaults set --profile acme", "weeks spaces list --profile acme"}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("breadcrumbs = %q, want %q", got, want)
+	}
+}
+
+func TestPeopleViewCallsAPI(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/staffing/people/person_abc" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"id":"person_abc","name":"Dana","display_name":"Dana Lee","space_id":"space_abc"}`))
+	})
+	defer server.Close()
+
+	cmd := NewPeopleCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"view", "person_abc"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got := appOutput(app)
+	for _, want := range []string{"id            person_abc", "name          Dana", "display name  Dana Lee", "weeks people list --space space_abc"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, missing %q", got, want)
+		}
+	}
+}
+
 func TestReadAuthBreadcrumbsRespectGlobalScope(t *testing.T) {
 	err := readErrorNext(&appctx.App{ConfigScope: config.ScopeGlobal, Profile: "acme"}, output.ErrAuth("not signed in"))
 

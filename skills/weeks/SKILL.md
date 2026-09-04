@@ -209,6 +209,10 @@ weeks spaces list --team <team-id>
 weeks spaces view <space-id>
 weeks spaces view <space-id> --include overview
 
+weeks people list
+weeks people list --space <space-id>
+weeks people view <person-id>
+
 weeks plans list
 weeks plans list --space <space-id>
 weeks plans view <plan-id>
@@ -222,11 +226,11 @@ collections are expanded into item sections; other resource types still
 summarize nested collections by count.
 
 Use typed IDs exactly as the API returns them, such as `team_...`, `space_...`,
-and `plan_...`. `weeks spaces list` resolves its team from an explicit
-`--team`, then this folder's default team, then a sole accessible team.
-`weeks plans list` resolves its space from an explicit `--space` or this
-folder's default space. If neither can be resolved, list the parent resources
-and pass the typed id or set folder defaults.
+`person_...`, and `plan_...`. `weeks spaces list` resolves its team from an
+explicit `--team`, then this folder's default team, then a sole accessible
+team. `weeks people list` and `weeks plans list` resolve their space from an
+explicit `--space` or this folder's default space. If neither can be resolved,
+list the parent resources and pass the typed id or set folder defaults.
 
 Include scopes are passed straight to the API. Useful starting points:
 

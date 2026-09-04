@@ -159,6 +159,79 @@ func newSpacesViewCmd() *cobra.Command {
 	return cmd
 }
 
+// NewPeopleCmd builds `weeks people`.
+func NewPeopleCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "people",
+		Aliases: []string{"space-people"},
+		Short:   "List and view space people",
+		Long:    "People are the staffable people in a space.",
+	}
+	cmd.AddCommand(newPeopleListCmd(), newPeopleViewCmd())
+	return cmd
+}
+
+func newPeopleListCmd() *cobra.Command {
+	var spaceID string
+	cmd := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List people in a space",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			app := appctx.From(cmd)
+			if spaceID == "" {
+				spaceID = currentDefaults(app).SpaceID
+			}
+			if spaceID == "" {
+				return output.WithErrorNext(
+					output.ErrUsage("--space is required"),
+					spaceSelectionBreadcrumbs(app)...,
+				)
+			}
+
+			data, err := apiGetJSON(cmd, app, "/api/v1/spaces/"+url.PathEscape(spaceID)+"/staffing/people", nil)
+			if err != nil {
+				return err
+			}
+			people := resourceList(data)
+			return app.Out.OK(people,
+				output.WithSummary(fmt.Sprintf("%d people.", len(people))),
+				output.WithBreadcrumbs(
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks people view <person-id>", app.Profile), Description: "Fetch one person"},
+					output.Breadcrumb{Action: "plans", Cmd: profileCommand(app, "weeks plans list --space "+spaceID, app.Profile), Description: "List plans in this space"},
+				),
+			)
+		},
+	}
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose people should be listed (required)")
+	return cmd
+}
+
+func newPeopleViewCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "view <person-id>",
+		Short: "Fetch one space person",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app := appctx.From(cmd)
+			data, err := apiGetJSON(cmd, app, "/api/v1/staffing/people/"+url.PathEscape(args[0]), nil)
+			if err != nil {
+				return err
+			}
+			person := resource(data)
+			return app.Out.OK(person,
+				output.WithSummary(fmt.Sprintf("Person %s.", resourceLabel(person))),
+				output.WithBreadcrumbs(
+					output.Breadcrumb{Action: "space", Cmd: profileCommand(app, "weeks spaces view "+stringValue(person["space_id"]), app.Profile), Description: "Fetch the space this person belongs to"},
+					output.Breadcrumb{Action: "people", Cmd: profileCommand(app, "weeks people list --space "+stringValue(person["space_id"]), app.Profile), Description: "List people in this space"},
+				),
+			)
+		},
+	}
+	return cmd
+}
+
 // NewPlansCmd builds `weeks plans`.
 func NewPlansCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -711,7 +784,7 @@ func renderIndentedScalarFields(w io.Writer, style *output.Style, r Resource, ke
 }
 
 func orderedKeys(r Resource) []string {
-	priority := []string{"id", "name", "space_id", "team_id", "time_zone", "locale", "archived_at", "counts", "created_at", "updated_at"}
+	priority := []string{"id", "name", "display_name", "space_id", "team_id", "time_zone", "locale", "archived_at", "counts", "created_at", "updated_at"}
 	seen := map[string]bool{}
 	var keys []string
 	for _, key := range priority {
