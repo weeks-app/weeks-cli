@@ -444,6 +444,142 @@ func TestPeopleViewCallsAPI(t *testing.T) {
 	}
 }
 
+func TestPlanningContextsListCallsAPI(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/planning_contexts" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"planning_context_abc","name":"Availability","space_id":"space_abc","values":[{"id":"planning_context_value_abc","name":"Busy","effect":"negative"}]}]`))
+	})
+	defer server.Close()
+
+	cmd := NewPlanningContextsCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list", "--space", "space_abc"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got := appOutput(app)
+	for _, want := range []string{"planning_context_abc", "Availability", "weeks planning-context-values list --planning-context <planning-context-id>"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestPlanningContextsListUsesDefaultSpace(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/planning_contexts" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"planning_context_abc","name":"Availability","space_id":"space_abc"}]`))
+	})
+	defer server.Close()
+	setReadTestDefaults(t, app, defaults{TeamID: "team_abc", SpaceID: "space_abc"})
+
+	cmd := NewPlanningContextsCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+}
+
+func TestPlanningContextsViewCallsAPI(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/staffing/planning_contexts/planning_context_abc" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"id":"planning_context_abc","name":"Availability","space_id":"space_abc","values":[{"id":"planning_context_value_abc","name":"Busy","effect":"negative"}]}`))
+	})
+	defer server.Close()
+
+	cmd := NewPlanningContextsCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"view", "planning_context_abc"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got := appOutput(app)
+	for _, want := range []string{"id        planning_context_abc", "name      Availability", "values    1 items", "weeks planning-context-values list --planning-context planning_context_abc"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestPlanningContextValuesListCallsAPI(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/staffing/planning_contexts/planning_context_abc/values" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"id":"planning_context_value_abc","name":"Busy","effect":"negative","planning_context_id":"planning_context_abc"}]`))
+	})
+	defer server.Close()
+
+	cmd := NewPlanningContextValuesCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"list", "--planning-context", "planning_context_abc"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got := appOutput(app)
+	for _, want := range []string{"planning_context_value_abc", "Busy", "weeks planning-contexts view planning_context_abc"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestPlanningContextValuesListRequiresPlanningContext(t *testing.T) {
+	cmd := NewPlanningContextValuesCmd()
+	cmd.SetContext(appctx.With(context.Background(), &appctx.App{
+		Out:     output.New(output.Options{Format: output.FormatStyled, Writer: &bytes.Buffer{}}),
+		Profile: "acme",
+	}))
+	cmd.SetArgs([]string{"list"})
+
+	err := cmd.Execute()
+	if output.AsError(err).Code != output.CodeUsage {
+		t.Fatalf("code = %q, err = %v", output.AsError(err).Code, err)
+	}
+	var withCrumbs *output.BreadcrumbError
+	if !errors.As(err, &withCrumbs) {
+		t.Fatalf("err = %T, want BreadcrumbError", err)
+	}
+	if got := withCrumbs.Breadcrumbs[0].Cmd; got != "weeks planning-contexts list --profile acme" {
+		t.Fatalf("breadcrumb = %q", got)
+	}
+}
+
+func TestPlanningContextValuesViewCallsAPI(t *testing.T) {
+	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/staffing/planning_context_values/planning_context_value_abc" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"id":"planning_context_value_abc","name":"Busy","effect":"negative","planning_context_id":"planning_context_abc"}`))
+	})
+	defer server.Close()
+
+	cmd := NewPlanningContextValuesCmd()
+	cmd.SetContext(appctx.With(context.Background(), app))
+	cmd.SetArgs([]string{"view", "planning_context_value_abc"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got := appOutput(app)
+	for _, want := range []string{"id                   planning_context_value_abc", "name                 Busy", "planning context id  planning_context_abc", "weeks planning-contexts view planning_context_abc"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, missing %q", got, want)
+		}
+	}
+}
+
 func TestReadAuthBreadcrumbsRespectGlobalScope(t *testing.T) {
 	err := readErrorNext(&appctx.App{ConfigScope: config.ScopeGlobal, Profile: "acme"}, output.ErrAuth("not signed in"))
 

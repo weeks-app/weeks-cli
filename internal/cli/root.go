@@ -140,6 +140,8 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 		commands.NewTeamsCmd(),
 		commands.NewSpacesCmd(),
 		commands.NewPeopleCmd(),
+		commands.NewPlanningContextsCmd(),
+		commands.NewPlanningContextValuesCmd(),
 		commands.NewPlansCmd(),
 		commands.NewSkillCmd(),
 		commands.NewSetupCmd(),

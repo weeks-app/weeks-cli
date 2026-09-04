@@ -73,16 +73,24 @@ weeks people list
 weeks people list --space <space-id>
 weeks people view <person-id>
 
+weeks planning-contexts list
+weeks planning-contexts list --space <space-id>
+weeks planning-contexts view <planning-context-id>
+
+weeks planning-context-values list --planning-context <planning-context-id>
+weeks planning-context-values view <planning-context-value-id>
+
 weeks plans list
 weeks plans list --space <space-id>
 weeks plans view <plan-id> --include snapshot
 ```
 
 Use the typed IDs returned by the API, such as `team_...`, `space_...`,
-`person_...`, and `plan_...`. `weeks spaces list` resolves its team from an
-explicit `--team`, then the folder default, then a sole accessible team.
-`weeks people list` and `weeks plans list` resolve their space from `--space`
-or the folder default.
+`person_...`, `planning_context_...`, `planning_context_value_...`, and
+`plan_...`. `weeks spaces list` resolves its team from an explicit `--team`,
+then the folder default, then a sole accessible team. `weeks people list`,
+`weeks planning-contexts list`, and `weeks plans list` resolve their space
+from `--space` or the folder default.
 `view` returns one API resource, and JSON output preserves the resource shape
 returned by the server. For plan reads, styled output expands requested plan
 collections into readable sections rather than reducing them to collection
