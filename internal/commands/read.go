@@ -202,7 +202,7 @@ func newPeopleListCmd() *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose people should be listed (required)")
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose people should be listed; defaults to this folder's default space")
 	return cmd
 }
 
@@ -273,7 +273,7 @@ func newPlanningContextsListCmd() *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose planning contexts should be listed (required)")
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose planning contexts should be listed; defaults to this folder's default space")
 	return cmd
 }
 
@@ -412,7 +412,7 @@ func newPlansListCmd() *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose plans should be listed (required)")
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose plans should be listed; defaults to this folder's default space")
 	return cmd
 }
 
