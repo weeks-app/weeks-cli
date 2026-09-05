@@ -356,7 +356,7 @@ func TestPeopleListCallsAPI(t *testing.T) {
 		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/people" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"id":"person_abc","name":"Dana","display_name":"Dana Lee","space_id":"space_abc"}]`))
+		_, _ = w.Write([]byte(`[{"id":"space_person_abc","name":"Dana","display_name":"Dana Lee","space_id":"space_abc"}]`))
 	})
 	defer server.Close()
 
@@ -368,7 +368,7 @@ func TestPeopleListCallsAPI(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 	got := appOutput(app)
-	if !strings.Contains(got, "person_abc") || !strings.Contains(got, "Dana") || !strings.Contains(got, "weeks plans list --space space_abc") {
+	if !strings.Contains(got, "space_person_abc") || !strings.Contains(got, "Dana") || !strings.Contains(got, "weeks people view <space-person-id>") || !strings.Contains(got, "weeks plans list --space space_abc") {
 		t.Fatalf("output = %q", got)
 	}
 }
@@ -378,7 +378,7 @@ func TestPeopleListUsesDefaultSpace(t *testing.T) {
 		if r.URL.Path != "/api/v1/spaces/space_abc/staffing/people" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"id":"person_abc","name":"Dana","space_id":"space_abc"}]`))
+		_, _ = w.Write([]byte(`[{"id":"space_person_abc","name":"Dana","space_id":"space_abc"}]`))
 	})
 	defer server.Close()
 	setReadTestDefaults(t, app, defaults{TeamID: "team_abc", SpaceID: "space_abc"})
@@ -422,22 +422,22 @@ func TestPeopleListRequiresSpace(t *testing.T) {
 
 func TestPeopleViewCallsAPI(t *testing.T) {
 	server, app := readTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/staffing/people/person_abc" {
+		if r.URL.Path != "/api/v1/staffing/people/space_person_abc" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"id":"person_abc","name":"Dana","display_name":"Dana Lee","space_id":"space_abc"}`))
+		_, _ = w.Write([]byte(`{"id":"space_person_abc","name":"Dana","display_name":"Dana Lee","space_id":"space_abc"}`))
 	})
 	defer server.Close()
 
 	cmd := NewPeopleCmd()
 	cmd.SetContext(appctx.With(context.Background(), app))
-	cmd.SetArgs([]string{"view", "person_abc"})
+	cmd.SetArgs([]string{"view", "space_person_abc"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	got := appOutput(app)
-	for _, want := range []string{"id            person_abc", "name          Dana", "display name  Dana Lee", "weeks people list --space space_abc"} {
+	for _, want := range []string{"id            space_person_abc", "name          Dana", "display name  Dana Lee", "weeks people list --space space_abc"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output = %q, missing %q", got, want)
 		}

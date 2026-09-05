@@ -211,7 +211,7 @@ weeks spaces view <space-id> --include overview
 
 weeks people list
 weeks people list --space <space-id>
-weeks people view <person-id>
+weeks people view <space-person-id>
 
 weeks planning-contexts list
 weeks planning-contexts list --space <space-id>
@@ -230,7 +230,7 @@ collections are expanded into item sections; other resource types still
 summarize nested collections by count.
 
 Use typed IDs exactly as the API returns them, such as `team_...`, `space_...`,
-`person_...`, `planning_context_...`, `planning_context_value_...`, and
+`space_person_...`, `planning_context_...`, `planning_context_value_...`, and
 `plan_...`. Planning-context value IDs appear inside planning-context reads.
 `weeks spaces list` resolves its team from an explicit `--team`, then this
 folder's default team, then a sole accessible team. `weeks people list`, `weeks
@@ -257,9 +257,11 @@ These are the words the product uses; say them back to the user.
   staffed, and what overlap with each other.
 - **Assigned person** — someone placed in a slot.
 - **Assigned job** — a role within a slot that people are assigned to.
-- **Planning context** — a condition on a person's availability. It can be
-  negative: "not on weekends", "not with this crew". Contexts are what the
-  confirmation gate is usually protecting.
+- **Planning context** — a space-defined category such as availability or
+  absence, containing values with positive, neutral, or negative effects.
+- **Planning state** — a value assigned to a person, optionally for a time
+  window. Resolved planning hints can require confirmation when they are
+  negative.
 - **Overlap** — two slots wanting the same person at the same time.
 - **Rollup** — a plan's staffing state summarized: what is filled, what is
   short, what conflicts.
