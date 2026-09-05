@@ -9,7 +9,7 @@ command answers with the same JSON envelope, every answer suggests what to do
 next, and the agent skill that teaches the CLI ships inside the binary.
 
 > **Status: early.** Auth, discovery, diagnostics, setup, the output contract,
-> and basic reads for teams, spaces, people, and plans are in place. Most scheduling
+> and basic reads for teams, spaces, people, planning contexts, and plans are in place. Most scheduling
 > commands — including writes, slots, jobs, rollups, and overlaps —
 > have not shipped yet.
 
@@ -71,7 +71,7 @@ weeks spaces view <space-id> --include overview
 
 weeks people list
 weeks people list --space <space-id>
-weeks people view <person-id>
+weeks people view <space-person-id>
 
 weeks planning-contexts list
 weeks planning-contexts list --space <space-id>
@@ -83,7 +83,7 @@ weeks plans view <plan-id> --include snapshot
 ```
 
 Use the typed IDs returned by the API, such as `team_...`, `space_...`,
-`person_...`, `planning_context_...`, `planning_context_value_...`, and
+`space_person_...`, `planning_context_...`, `planning_context_value_...`, and
 `plan_...`. Planning-context value IDs appear inside planning-context reads.
 `weeks spaces list` resolves its team from an explicit `--team`, then the
 folder default, then a sole accessible team. `weeks people list`, `weeks

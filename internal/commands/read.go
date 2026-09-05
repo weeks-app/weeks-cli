@@ -196,7 +196,7 @@ func newPeopleListCmd() *cobra.Command {
 			return app.Out.OK(people,
 				output.WithSummary(fmt.Sprintf("%d people.", len(people))),
 				output.WithBreadcrumbs(
-					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks people view <person-id>", app.Profile), Description: "Fetch one person"},
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks people view <space-person-id>", app.Profile), Description: "Fetch one person"},
 					output.Breadcrumb{Action: "plans", Cmd: profileCommand(app, "weeks plans list --space "+spaceID, app.Profile), Description: "List plans in this space"},
 				),
 			)
@@ -208,7 +208,7 @@ func newPeopleListCmd() *cobra.Command {
 
 func newPeopleViewCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "view <person-id>",
+		Use:   "view <space-person-id>",
 		Short: "Fetch one space person",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
