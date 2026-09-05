@@ -139,6 +139,8 @@ func NewRootCmd() (*cobra.Command, *rootFlags) {
 		commands.NewCommandsCmd(),
 		commands.NewTeamsCmd(),
 		commands.NewSpacesCmd(),
+		commands.NewPeopleCmd(),
+		commands.NewPlanningContextsCmd(),
 		commands.NewPlansCmd(),
 		commands.NewSkillCmd(),
 		commands.NewSetupCmd(),

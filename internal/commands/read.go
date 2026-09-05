@@ -159,6 +159,146 @@ func newSpacesViewCmd() *cobra.Command {
 	return cmd
 }
 
+// NewPeopleCmd builds `weeks people`.
+func NewPeopleCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "people",
+		Aliases: []string{"space-people"},
+		Short:   "List and view space people",
+		Long:    "People are the staffable people in a space.",
+	}
+	cmd.AddCommand(newPeopleListCmd(), newPeopleViewCmd())
+	return cmd
+}
+
+func newPeopleListCmd() *cobra.Command {
+	var spaceID string
+	cmd := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List people in a space",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			app := appctx.From(cmd)
+			spaceID = resolveSpaceID(app, spaceID)
+			if spaceID == "" {
+				return output.WithErrorNext(
+					output.ErrUsage("--space is required"),
+					spaceSelectionBreadcrumbs(app)...,
+				)
+			}
+
+			data, err := apiGetJSON(cmd, app, "/api/v1/spaces/"+url.PathEscape(spaceID)+"/staffing/people", nil)
+			if err != nil {
+				return err
+			}
+			people := resourceList(data)
+			return app.Out.OK(people,
+				output.WithSummary(fmt.Sprintf("%d people.", len(people))),
+				output.WithBreadcrumbs(
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks people view <person-id>", app.Profile), Description: "Fetch one person"},
+					output.Breadcrumb{Action: "plans", Cmd: profileCommand(app, "weeks plans list --space "+spaceID, app.Profile), Description: "List plans in this space"},
+				),
+			)
+		},
+	}
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose people should be listed; defaults to this folder's default space")
+	return cmd
+}
+
+func newPeopleViewCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "view <person-id>",
+		Short: "Fetch one space person",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app := appctx.From(cmd)
+			data, err := apiGetJSON(cmd, app, "/api/v1/staffing/people/"+url.PathEscape(args[0]), nil)
+			if err != nil {
+				return err
+			}
+			person := resource(data)
+			return app.Out.OK(person,
+				output.WithSummary(fmt.Sprintf("Person %s.", resourceLabel(person))),
+				output.WithBreadcrumbs(
+					output.Breadcrumb{Action: "space", Cmd: profileCommand(app, "weeks spaces view "+stringValue(person["space_id"]), app.Profile), Description: "Fetch the space this person belongs to"},
+					output.Breadcrumb{Action: "people", Cmd: profileCommand(app, "weeks people list --space "+stringValue(person["space_id"]), app.Profile), Description: "List people in this space"},
+				),
+			)
+		},
+	}
+	return cmd
+}
+
+// NewPlanningContextsCmd builds `weeks planning-contexts`.
+func NewPlanningContextsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "planning-contexts",
+		Aliases: []string{"contexts"},
+		Short:   "List and view planning contexts",
+		Long:    "Planning contexts describe categories for a person's availability or constraints in a space.",
+	}
+	cmd.AddCommand(newPlanningContextsListCmd(), newPlanningContextsViewCmd())
+	return cmd
+}
+
+func newPlanningContextsListCmd() *cobra.Command {
+	var spaceID string
+	cmd := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List planning contexts in a space",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			app := appctx.From(cmd)
+			spaceID = resolveSpaceID(app, spaceID)
+			if spaceID == "" {
+				return output.WithErrorNext(
+					output.ErrUsage("--space is required"),
+					spaceSelectionBreadcrumbs(app)...,
+				)
+			}
+
+			data, err := apiGetJSON(cmd, app, "/api/v1/spaces/"+url.PathEscape(spaceID)+"/staffing/planning_contexts", nil)
+			if err != nil {
+				return err
+			}
+			contexts := resourceList(data)
+			return app.Out.OK(contexts,
+				output.WithSummary(fmt.Sprintf("%d planning contexts.", len(contexts))),
+				output.WithBreadcrumbs(
+					output.Breadcrumb{Action: "view", Cmd: profileCommand(app, "weeks planning-contexts view <planning-context-id>", app.Profile), Description: "Fetch one planning context"},
+				),
+			)
+		},
+	}
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose planning contexts should be listed; defaults to this folder's default space")
+	return cmd
+}
+
+func newPlanningContextsViewCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "view <planning-context-id>",
+		Short: "Fetch one planning context",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app := appctx.From(cmd)
+			data, err := apiGetJSON(cmd, app, "/api/v1/staffing/planning_contexts/"+url.PathEscape(args[0]), nil)
+			if err != nil {
+				return err
+			}
+			context := resource(data)
+			return app.Out.OK(context,
+				output.WithSummary(fmt.Sprintf("Planning context %s.", resourceLabel(context))),
+				output.WithBreadcrumbs(
+					output.Breadcrumb{Action: "space", Cmd: profileCommand(app, "weeks spaces view "+stringValue(context["space_id"]), app.Profile), Description: "Fetch the space this planning context belongs to"},
+				),
+			)
+		},
+	}
+	return cmd
+}
+
 // NewPlansCmd builds `weeks plans`.
 func NewPlansCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -179,9 +319,7 @@ func newPlansListCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			app := appctx.From(cmd)
-			if spaceID == "" {
-				spaceID = currentDefaults(app).SpaceID
-			}
+			spaceID = resolveSpaceID(app, spaceID)
 			if spaceID == "" {
 				return output.WithErrorNext(
 					output.ErrUsage("--space is required"),
@@ -203,7 +341,7 @@ func newPlansListCmd() *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose plans should be listed (required)")
+	cmd.Flags().StringVar(&spaceID, "space", "", "Space id whose plans should be listed; defaults to this folder's default space")
 	return cmd
 }
 
@@ -304,6 +442,13 @@ func resolveTeamID(cmd *cobra.Command, app *appctx.App, explicit string) (string
 	default:
 		return "", output.ErrUsage("--team is required when this profile can access multiple teams; run `weeks teams list`")
 	}
+}
+
+func resolveSpaceID(app *appctx.App, explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	return currentDefaults(app).SpaceID
 }
 
 func includeQuery(include string) url.Values {
@@ -711,7 +856,7 @@ func renderIndentedScalarFields(w io.Writer, style *output.Style, r Resource, ke
 }
 
 func orderedKeys(r Resource) []string {
-	priority := []string{"id", "name", "space_id", "team_id", "time_zone", "locale", "archived_at", "counts", "created_at", "updated_at"}
+	priority := []string{"id", "name", "display_name", "space_id", "team_id", "time_zone", "locale", "archived_at", "counts", "created_at", "updated_at"}
 	seen := map[string]bool{}
 	var keys []string
 	for _, key := range priority {

@@ -9,8 +9,8 @@ command answers with the same JSON envelope, every answer suggests what to do
 next, and the agent skill that teaches the CLI ships inside the binary.
 
 > **Status: early.** Auth, discovery, diagnostics, setup, the output contract,
-> and basic reads for teams, spaces, and plans are in place. Most scheduling
-> commands — including writes, slots, people, jobs, rollups, and overlaps —
+> and basic reads for teams, spaces, people, and plans are in place. Most scheduling
+> commands — including writes, slots, jobs, rollups, and overlaps —
 > have not shipped yet.
 
 ## Install
@@ -69,15 +69,26 @@ weeks spaces list
 weeks spaces list --team <team-id>
 weeks spaces view <space-id> --include overview
 
+weeks people list
+weeks people list --space <space-id>
+weeks people view <person-id>
+
+weeks planning-contexts list
+weeks planning-contexts list --space <space-id>
+weeks planning-contexts view <planning-context-id>
+
 weeks plans list
 weeks plans list --space <space-id>
 weeks plans view <plan-id> --include snapshot
 ```
 
-Use the typed IDs returned by the API, such as `team_...`, `space_...`, and
-`plan_...`. `weeks spaces list` resolves its team from an explicit `--team`,
-then the folder default, then a sole accessible team. `weeks plans list`
-resolves its space from `--space` or the folder default.
+Use the typed IDs returned by the API, such as `team_...`, `space_...`,
+`person_...`, `planning_context_...`, `planning_context_value_...`, and
+`plan_...`. Planning-context value IDs appear inside planning-context reads.
+`weeks spaces list` resolves its team from an explicit `--team`, then the
+folder default, then a sole accessible team. `weeks people list`, `weeks
+planning-contexts list`, and `weeks plans list` resolve their space from
+`--space` or the folder default.
 `view` returns one API resource, and JSON output preserves the resource shape
 returned by the server. For plan reads, styled output expands requested plan
 collections into readable sections rather than reducing them to collection
